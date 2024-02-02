@@ -64,3 +64,4 @@ __pycache__/
 slurm-*.out
 zRunner.sh
 PharmCAT.jar
+bin
