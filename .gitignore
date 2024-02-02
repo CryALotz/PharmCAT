@@ -58,3 +58,11 @@ hs_err_pid*
 
 # python directory or files
 __pycache__/
+
+
+#zen
+/.vscode
+/inpp
+slurm-*.out
+zRunner.sh
+PharmCAT.jar
