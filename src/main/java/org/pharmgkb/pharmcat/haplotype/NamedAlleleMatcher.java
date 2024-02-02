@@ -20,6 +20,7 @@ import com.google.common.collect.Sets;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.pharmgkb.common.util.CliHelper;
 import org.pharmgkb.pharmcat.BaseConfig;
+import org.pharmgkb.pharmcat.Env;
 import org.pharmgkb.pharmcat.VcfFile;
 import org.pharmgkb.pharmcat.definition.DefinitionReader;
 import org.pharmgkb.pharmcat.definition.model.DefinitionExemption;
@@ -30,6 +31,7 @@ import org.pharmgkb.pharmcat.haplotype.model.CombinationMatch;
 import org.pharmgkb.pharmcat.haplotype.model.DiplotypeMatch;
 import org.pharmgkb.pharmcat.haplotype.model.HaplotypeMatch;
 import org.pharmgkb.pharmcat.haplotype.model.Result;
+import org.pharmgkb.pharmcat.reporter.TextConstants;
 import org.pharmgkb.pharmcat.util.CliUtils;
 import org.pharmgkb.pharmcat.util.DataManager;
 
@@ -44,12 +46,14 @@ public class NamedAlleleMatcher {
   // CHANGES TO THIS LIST OF GENES SHOULD ALSO BE REFLECTED IN DOCUMENTATION IN NamedAlleleMatcher-201.md
   public static final List<String> TREAT_UNDOCUMENTED_VARIATIONS_AS_REFERENCE = List.of(
       "CACNA1S",
+      "DPYD",
       "G6PD",
       "NUDT15",
       "RYR1",
       "TPMT"
   );
 
+  private final Env m_env;
   private final DefinitionReader m_definitionReader;
   private final boolean m_findCombinations;
   private final boolean m_topCandidateOnly;
@@ -61,8 +65,8 @@ public class NamedAlleleMatcher {
    * Default constructor.
    * This will only call the top candidate(s).  Will not find combinations or call CYP2D6.
    */
-  public NamedAlleleMatcher(DefinitionReader definitionReader) {
-    this(definitionReader, false, false, false);
+  public NamedAlleleMatcher(Env env, DefinitionReader definitionReader) {
+    this(env, definitionReader, false, false, false);
   }
 
   /**
@@ -71,10 +75,11 @@ public class NamedAlleleMatcher {
    * @param topCandidateOnly true if only top candidate(s) should be called, false to call all possible candidates
    * @param callCyp2d6 true if CYP2D6 should be called
    */
-  public NamedAlleleMatcher(DefinitionReader definitionReader, boolean findCombinations, boolean topCandidateOnly,
-      boolean callCyp2d6) {
-
+  public NamedAlleleMatcher(Env env, DefinitionReader definitionReader, boolean findCombinations,
+      boolean topCandidateOnly, boolean callCyp2d6) {
+    Preconditions.checkNotNull(env);
     Preconditions.checkNotNull(definitionReader);
+    m_env = env;
     m_definitionReader = definitionReader;
     m_findCombinations = findCombinations;
     m_topCandidateOnly = topCandidateOnly;
@@ -118,7 +123,7 @@ public class NamedAlleleMatcher {
       }
 
       DefinitionReader definitionReader = new DefinitionReader(definitionDir);
-      if (definitionReader.getGenes().size() == 0) {
+      if (definitionReader.getGenes().isEmpty()) {
         System.out.println("Did not find any allele definitions at " + definitionDir);
         System.exit(1);
       }
@@ -131,7 +136,7 @@ public class NamedAlleleMatcher {
         findCombinations = cliHelper.hasOption("combinations");
       }
       NamedAlleleMatcher namedAlleleMatcher =
-          new NamedAlleleMatcher(definitionReader, findCombinations, topCandidateOnly, callCyp2d6)
+          new NamedAlleleMatcher(new Env(), definitionReader, findCombinations, topCandidateOnly, callCyp2d6)
               .printWarnings();
       Result result = namedAlleleMatcher.call(new VcfFile(vcfFile), null);
 
@@ -146,6 +151,7 @@ public class NamedAlleleMatcher {
       }
 
     } catch (Exception ex) {
+      //noinspection CallToPrintStackTrace
       ex.printStackTrace();
     }
   }
@@ -247,24 +253,38 @@ public class NamedAlleleMatcher {
   private void callDpyd(String sampleId, SortedMap<String, SampleAllele> alleleMap, ResultBuilder resultBuilder) {
     final String gene = "DPYD";
 
-    MatchData refData = initializeCallData(sampleId, alleleMap, gene, true, false);
-    if (refData.getNumSampleAlleles() == 0) {
-      resultBuilder.gene(gene, refData);
+    MatchData origData = initializeCallData(sampleId, alleleMap, gene, true, false);
+    if (origData.getNumSampleAlleles() == 0) {
+      resultBuilder.gene(gene, origData);
       return;
+    }
+
+    DpydHapB3Matcher dpydHapB3Matcher = new DpydHapB3Matcher(m_env, alleleMap, origData.isEffectivelyPhased());
+    MatchData workingData;
+    if (dpydHapB3Matcher.isMissingHapB3Positions()) {
+      workingData = origData;
+    } else {
+      workingData = initializeDpydCallData(sampleId, alleleMap, true, false);
     }
 
     MatchData comboData = null;
     // try for diplotypes if effectively phased
-    if (refData.isEffectivelyPhased()) {
+    if (origData.isEffectivelyPhased()) {
      // first look for exact matches (use topCandidateOnly = false because looking for exact match)
-      List<DiplotypeMatch> diplotypeMatches = new DiplotypeMatcher(refData)
+      List<DiplotypeMatch> diplotypeMatches = new DiplotypeMatcher(workingData)
           .compute(false, false);
       if (diplotypeMatches.size() == 1) {
-        resultBuilder.diplotypes(gene, refData, diplotypeMatches);
+        if (!dpydHapB3Matcher.isMissingHapB3Positions()) {
+          MatchData mergerData = initializeCallData(sampleId, alleleMap, gene, false, false);
+          List<DiplotypeMatch> mergedMatches = dpydHapB3Matcher.mergePhasedDiplotypeMatch(mergerData, diplotypeMatches);
+          resultBuilder.diplotypes(gene, mergerData, mergedMatches, dpydHapB3Matcher.getWarnings());
+        } else {
+          resultBuilder.diplotypes(gene, workingData, diplotypeMatches);
+        }
         return;
       }
       // try combinations
-      comboData = initializeCallData(sampleId, alleleMap, gene, false, true);
+      comboData = initializeDpydCallData(sampleId, alleleMap, false, true);
       diplotypeMatches = new DiplotypeMatcher(comboData)
           .compute(true, false, false, true);
       if (!diplotypeMatches.isEmpty()) {
@@ -274,7 +294,7 @@ public class NamedAlleleMatcher {
         }
         List<DiplotypeMatch> finalMatches = Arrays.asList(matches);
         if (matches.length > 1) {
-          if (refData.isHomozygous()) {
+          if (workingData.isHomozygous()) {
             finalMatches = finalMatches.stream()
                 .filter(m -> m.getHaplotype2() != null &&
                     m.getHaplotype1().getName().equals(m.getHaplotype2().getName()))
@@ -285,40 +305,45 @@ public class NamedAlleleMatcher {
           // this should never happen
           throw new IllegalStateException("Least function gene cannot have more than 1 diplotype");
         }
-        resultBuilder.diplotypes(gene, comboData, finalMatches);
+
+        if (!dpydHapB3Matcher.isMissingHapB3Positions()) {
+          MatchData mergerData = initializeCallData(sampleId, alleleMap, gene, false, true);
+          List<DiplotypeMatch> mergedMatches = dpydHapB3Matcher.mergePhasedDiplotypeMatch(mergerData, finalMatches);
+          resultBuilder.diplotypes(gene, mergerData, mergedMatches, dpydHapB3Matcher.getWarnings());
+        } else {
+          resultBuilder.diplotypes(gene, comboData, finalMatches);
+        }
         return;
       }
     }
 
     if (comboData == null) {
-      comboData = initializeCallData(sampleId, alleleMap, gene, false, true);
+      comboData = initializeDpydCallData(sampleId, alleleMap, false, true);
     }
     SortedSet<HaplotypeMatch> hapMatches = comboData.comparePermutations();
-    // Reference/Reference matches would have been handled above
-    // if we get to this point, it's combination that might include Reference
-    // if there's only 1 match and it's Reference match, it should be a no call
-    // if there are more than 2, strip out Reference because we prioritize non-Reference if possible
-    if (hapMatches.size() != 2) {
-      hapMatches = hapMatches.stream()
-          .filter(m -> !m.getName().equals("Reference"))
-          .collect(Collectors.toCollection(TreeSet::new));
-    }
-    if (hapMatches.size() == 0) {
-      resultBuilder.haplotypes(gene, refData, new ArrayList<>(hapMatches));
-      return;
-    }
 
+    // have to compute diplotypes so that we can check for homozygous and partials
     List<DiplotypeMatch> matches = new DiplotypeMatcher(comboData)
         .compute(true, getTopCandidateOnly(gene));
     Set<String> homozygous = new HashSet<>();
+    int numPartials = 0;
     for (DiplotypeMatch dm : matches) {
+      if (dm.getHaplotype1().getHaplotype().isPartial() ||
+          (dm.getHaplotype2() != null && dm.getHaplotype2().getHaplotype().isPartial())) {
+        numPartials += 1;
+      }
+
       Map<String, Integer> haps = new HashMap<>();
       for (String h : dm.getHaplotype1().getHaplotypeNames()) {
-        haps.compute(h, (k, v) -> v == null ? 1 : v + 1);
+        if (!dm.getHaplotype1().getHaplotype().isPartial() || !h.equals(TextConstants.REFERENCE)) {
+          haps.compute(h, (k, v) -> v == null ? 1 : v + 1);
+        }
       }
       if (dm.getHaplotype2() != null) {
         for (String h : dm.getHaplotype2().getHaplotypeNames()) {
-          haps.compute(h, (k, v) -> v == null ? 1 : v + 1);
+          if (!dm.getHaplotype2().getHaplotype().isPartial() || !h.equals(TextConstants.REFERENCE)) {
+            haps.compute(h, (k, v) -> v == null ? 1 : v + 1);
+          }
         }
       }
       for (String k : haps.keySet()) {
@@ -326,6 +351,21 @@ public class NamedAlleleMatcher {
           homozygous.add(k);
         }
       }
+    }
+
+    // Reference/Reference matches should have been handled in effectively phased section
+    // if we get to this point, it's combination that might include Reference
+    if (dpydHapB3Matcher.isHapB3Present()) {
+      // unless we have HapB3, and it cannot have Reference/Reference
+      homozygous.remove(TextConstants.REFERENCE);
+    }
+    // if there are more than 2 haplotype matches, strip out Reference because we prioritize non-Reference if possible
+    // with 2 or fewer haplotype matches, cannot have reference if there's a partial
+    int numMatches = hapMatches.size() + dpydHapB3Matcher.getNumHapB3Called();
+    if (numMatches > 2 || numPartials > 0) {
+      hapMatches = hapMatches.stream()
+          .filter(m -> !m.getName().equals(TextConstants.REFERENCE))
+          .collect(Collectors.toCollection(TreeSet::new));
     }
 
     List<HaplotypeMatch> finalHaps = new ArrayList<>();
@@ -336,10 +376,13 @@ public class NamedAlleleMatcher {
         homozygous.remove(hm.getName());
       }
     }
-    if (homozygous.size() > 0) {
+    if (dpydHapB3Matcher.isHapB3Present()) {
+      finalHaps.addAll(dpydHapB3Matcher.buildHapB3HaplotypeMatches(origData));
+    }
+    if (!homozygous.isEmpty()) {
       throw new IllegalStateException("Combination matching found " + homozygous + " but haplotype matching didn't");
     }
-    resultBuilder.haplotypes(gene, refData, finalHaps);
+    resultBuilder.haplotypes(gene, origData, finalHaps, dpydHapB3Matcher.getWarnings());
   }
 
   /**
@@ -457,7 +500,7 @@ public class NamedAlleleMatcher {
   }
 
   /**
-   * Find positions that are used by ignored alleles (and are therefore potentially ignoreable).
+   * Find positions that are used by ignored alleles (and are therefore potentially ignorable).
    */
   private Set<VariantLocus> findIgnorablePositions(VariantLocus[] allPositions, NamedAllele namedAllele)  {
     Set<VariantLocus> ignorablePositions = new HashSet<>();
@@ -469,5 +512,48 @@ public class NamedAlleleMatcher {
       x += 1;
     }
     return ignorablePositions;
+  }
+
+
+  private MatchData initializeDpydCallData(String sampleId, SortedMap<String, SampleAllele> alleleMap,
+      boolean assumeReference, boolean findCombinations) {
+
+    String gene = "DPYD";
+    DefinitionExemption exemption = m_definitionReader.getExemption(gene);
+    SortedSet<VariantLocus> extraPositions = null;
+    // remove HapB3
+    SortedSet<NamedAllele> alleles = m_definitionReader.getHaplotypes(gene).stream()
+        .filter(a -> !a.getName().equals(DpydHapB3Matcher.HAPB3_ALLELE))
+        .collect(Collectors.toCollection(TreeSet::new));
+    VariantLocus[] allPositions = m_definitionReader.getPositions(gene);
+    SortedSet<VariantLocus> unusedPositions = new TreeSet<>();
+    // add HapB3 positions to ignore
+    for (VariantLocus vl : allPositions) {
+      if (DpydHapB3Matcher.isHapB3Rsid(vl.getRsid())) {
+        unusedPositions.add(vl);
+      }
+    }
+    if (exemption != null) {
+      extraPositions = exemption.getExtraPositions();
+      if (!exemption.getIgnoredAlleles().isEmpty()) {
+        throw new IllegalStateException("Not expecting DPYD to have ignored alleles");
+      }
+    }
+
+    // grab SampleAlleles for all positions related to current gene
+    MatchData data = new MatchData(sampleId, gene, alleleMap, allPositions, extraPositions, unusedPositions);
+    if (data.getNumSampleAlleles() == 0) {
+      return data;
+    }
+
+    // handle missing positions (if any)
+    data.marshallHaplotypes(gene, alleles, findCombinations);
+
+    if (assumeReference) {
+      data.defaultMissingAllelesToReference();
+    }
+
+    data.generateSamplePermutations();
+    return data;
   }
 }

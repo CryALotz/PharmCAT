@@ -7,8 +7,6 @@ import java.util.Collection;
 import java.util.Optional;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -144,6 +142,10 @@ class PharmCATTest {
   }
 
 
+  /**
+   * An example run with CYP2D6 research mode enabled.
+   * <p>NOTE: since research mode is enabled you will not get output from the reporter.</p>
+   */
   @Test
   void callCyp2d6(TestInfo testInfo) throws Exception {
     Path vcfFile = PathUtils.getPathToResource("org/pharmgkb/pharmcat/reference.vcf");
@@ -163,7 +165,7 @@ class PharmCATTest {
       assertTrue(systemOut.contains("Done."));
       assertTrue(Files.exists(refMatcherOutput));
       assertTrue(Files.exists(refPhenotyperOutput));
-      assertTrue(Files.exists(refReporterOutput));
+      assertTrue(Files.notExists(refReporterOutput));
 
       ResultSerializer resultSerializer = new ResultSerializer();
       Result result = resultSerializer.fromJson(refMatcherOutput);
@@ -182,16 +184,6 @@ class PharmCATTest {
       assertTrue(grOpt.isPresent());
       assertTrue(grOpt.get().isCalled());
       assertFalse(grOpt.get().isOutsideCall());
-
-      Document document = Jsoup.parse(refReporterOutput.toFile());
-      Element geneTitle = document.getElementById("CYP2D6");
-      assertNotNull(geneTitle);
-      assertNotNull(geneTitle.parent());
-      Elements diplotypes = geneTitle.parent().getElementsByTag("li");
-      for (String diplotype : diplotypes.eachText()) {
-        assertEquals("*1/*1", diplotype);
-      }
-      assertNotNull(document.getElementById("aripiprazole"));
 
     } finally {
       TestUtils.deleteTestFiles(outputDir);
@@ -247,6 +239,45 @@ class PharmCATTest {
       assertFalse(Files.exists(reporterOutput));
 
       validateCyp2d6OutsideCallOutput(phenotyperOutput);
+
+    } finally {
+      TestUtils.deleteTestFiles(outputDir);
+    }
+  }
+
+  @Test
+  void outsideCallsNoRecs(TestInfo testInfo) throws Exception {
+    Path vcfFile = PathUtils.getPathToResource("org/pharmgkb/pharmcat/reference.vcf");
+    Path outsideCallFile = PathUtils.getPathToResource("org/pharmgkb/pharmcat/PharmCATTest-outsideCallsNoRecs.tsv");
+
+    Path outputDir = TestUtils.getTestOutputDir(testInfo, true);
+    Path matcherOutput = outputDir.resolve("reference.match.json");
+    Path phenotyperOutput = outputDir.resolve("reference.phenotype.json");
+    Path reporterOutput = outputDir.resolve("reference.report.html");
+
+    try {
+      String systemOut = tapSystemOut(() -> PharmCAT.main(new String[] {
+          "-vcf", vcfFile.toString(),
+          "-po", outsideCallFile.toString(),
+          "-o", outputDir.toString(),
+      }));
+      System.out.println(systemOut);
+      assertTrue(systemOut.contains("Done."));
+      assertTrue(Files.exists(matcherOutput));
+      assertTrue(Files.exists(phenotyperOutput));
+      assertTrue(Files.exists(reporterOutput));
+
+      Collection<GeneReport> reports = Phenotyper.read(phenotyperOutput).getGeneReports().get(DataSource.CPIC)
+          .values();
+      Optional<GeneReport> grOpt = reports.stream()
+          .filter(gr -> gr.getGene().equals("IFNL3"))
+          .findFirst();
+      assertTrue(grOpt.isPresent());
+      assertTrue(grOpt.get().isCalled());
+      assertTrue(grOpt.get().isOutsideCall());
+
+      Document document = Jsoup.parse(reporterOutput.toFile());
+      assertEquals(1, document.select(".gene.IFNL3_4 .alert-warning.pcat-outside-call").size());
 
     } finally {
       TestUtils.deleteTestFiles(outputDir);

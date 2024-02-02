@@ -25,6 +25,11 @@
       max-width: 70em;
       padding: 0;
     }
+    .browserUpgrade {
+      background: #ccc;
+      color: #000;
+      padding: 1em;
+    }
     header {
       margin-bottom: 1em;
     }
@@ -260,6 +265,9 @@
     }
 
     td.mismatch {
+      font-weight: bold;
+    }
+    .nonwild {
       background-color: palegoldenrod;
       print-color-adjust: exact !important;
     }
@@ -328,10 +336,6 @@
       height: auto;
     }
 
-    .nonwild {
-      font-weight: bold;
-    }
-
     .warningList {
       margin: 0;
       list-style: none;
@@ -340,6 +344,21 @@
 
     sup a {
       text-decoration: none;
+    }
+
+    .tag {
+      align-items: center;
+      background-color: #ffc107;
+      border-radius: .2rem;
+      display: inline-flex;
+      justify-content: center;
+      padding: .1em .4em .15em;
+      text-transform: none;
+      white-space: nowrap;
+      margin-bottom: .5rem;
+    }
+    .tag.noAction {
+      background-color: #d8dbe2;
     }
 
     @media print {

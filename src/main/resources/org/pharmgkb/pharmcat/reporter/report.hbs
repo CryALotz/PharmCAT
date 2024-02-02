@@ -12,7 +12,7 @@
 </head>
 <body>
 <!--[if lt IE 9]>
-<p class="browserupgrade">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+<div class="browserUpgrade">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience.</div>
 <![endif]-->
 <header class="pageHeader">
   <div class="title">
@@ -50,14 +50,19 @@
     <h2>Section I: Genotype Summary</h2>
 
     {{#unless (thereAre summaries)}}
-      <p>
-        No genotypes called.
-      </p>
       {{#if (thereAre uncallableGenes)}}
+        <p>
+          No genotypes called.
+        </p>
         {{> uncallableGenesNote }}
       {{/if}}
+      {{#unless (thereAre uncallableGenes)}}
+        <p>
+          No data provided.
+        </p>
+      {{/unless}}
       <p>
-        See <a href="#section-iii">Section III</a> for details.  For a full list of disclaimers and limitations see <a href="#disclaimer">Section IV</a>.
+        For a full list of disclaimers and limitations see <a href="#disclaimer">Section IV</a>.
       </p>
     {{/unless}}
     {{#if (thereAre summaries) }}
@@ -84,7 +89,7 @@
         </thead>
         <tbody>
         {{#each summaries}}
-          <tr class="top-aligned gs-{{symbol}}">
+          <tr class="top-aligned gs-{{{sanitizeCssSelector symbol}}}">
             <td>
               {{#each relatedDrugs}}
                 <div class="drugName">
@@ -98,7 +103,7 @@
             </td>
             <td>
               <span class="noWrap">
-                <a href="#{{symbol}}" class="normalWrap">{{symbol}}</a>
+                <a href="#{{{sanitizeCssSelector symbol}}}" class="normalWrap">{{symbol}}</a>
                 {{#if hasMessages}}<sup><a href="#genotypes-dagger">&dagger;</a></sup>{{/if}}
                 {{#if showUnphasedNote}}<sup><a href="#genotypes-ddagger">&ddagger;</a></sup>{{/if}}
               </span>
@@ -109,12 +114,12 @@
                 {{#if showComponents}}
                   {{#with diplotypes}}
                     <tr class="leastFunctionDiplotype gs-dip_leastFunction">
-                      <td colspan="3"><b>{{{gsCall}}}</b></td>
+                      <td colspan="3"><b>{{{gsCall this ../homozygousComponentHaplotypes}}}</b></td>
                     </tr>
                   {{/with}}
                   {{#each componentDiplotypes}}
                     <tr class="top-aligned gs-dip_component">
-                      <td>{{{gsCall}}}</td>
+                      <td>{{{gsCall this ../homozygousComponentHaplotypes}}}</td>
                       <td>{{gsFunction}}</td>
                       <td>{{gsPhenotype}}</td>
                     </tr>
@@ -123,7 +128,7 @@
                   <!-- standard diplotype -->
                   {{#each diplotypes}}
                     <tr class="top-aligned gs-dip">
-                      <td>{{{gsCall}}}</td>
+                      <td>{{{gsCall this ../homozygousComponentHaplotypes}}}</td>
                       <td>{{gsFunction}}</td>
                       <td>{{gsPhenotype}}</td>
                     </tr>
@@ -137,10 +142,10 @@
                 </p>
               {{/if}}
               {{#if treatUndocumentedVariationsAsReference}}
-                <p class="tdNote" id="gs-undocVarAsRef-{{symbol}}">
+                <p class="tdNote" id="gs-undocVarAsRef-{{{sanitizeCssSelector symbol}}}">
                   There are genetic variations in this gene that do not match what is in the allele definition.
                   <b>These undocumented variations were replaced with reference.</b>
-                  See <a href="#{{symbol}}">Section III</a> for details.
+                  See <a href="#{{{sanitizeCssSelector symbol}}}">Section III</a> for details.
                 </p>
               {{/if}}
             </td>
@@ -150,11 +155,8 @@
       </table>
 
       {{#if (thereAre uncallableGenes)}}
-        <div class="alert alert-secondary">
+        <div class="alert alert-warning">
           {{> uncallableGenesNote }}
-          <p class="mb-1">
-            See <a href="#section-iii">Section III</a> for details.
-          </p>
         </div>
       {{/if}}
 
@@ -176,6 +178,9 @@
           In case of unphased data, additional genotypes might be possible and cannot be ruled out.
         </div>
       {{/if}}
+      <div class="footnote">
+        CPIC terms for allele function and phenotype are used for all CPIC genes. For non-CPIC genes, DPWG terms are used.
+      </div>
       <div class="footnote">
         For a full list of disclaimers and limitations see <a href="#disclaimer">Section IV</a>.
       </div>
@@ -217,7 +222,6 @@
               <th>Genes</th>
               <th>Implications</th>
               <th>Recommendation</th>
-              <th>Comments</th>
               <th>Classification</th>
             </tr>
             </thead>
@@ -237,6 +241,7 @@
                           {{/unless}}
                         </p>
                         <p>Population:<br />{{capitalizeNA population}}</p>
+                        {{{annotationTags this}}}
                       </td>
                       <td>
                         <div class="hint">{{pluralize "Genotype" genotypes}}</div>
@@ -244,11 +249,11 @@
                           {{#each genotypes}}
                             <li>
                               <span class="noWrap">
-                                {{{rxGenotype this ../this ../../this}}}
+                                {{{rxGenotype this ../this ../../this noDataGenes}}}
                                 {{#if (rxInferred this)}}<sup><a href="#rx-dagger-{{../../../drug}}" title="Inferred">&dagger;</a></sup>{{/if}}
                                 {{#if (rxDpydInferred this)}}<sup><a href="#rx-ddagger-{{../../../drug}}" title="Inferred">&ddagger;</a></sup>{{/if}}
                               </span>
-                              {{{rxGenotypeDebug this ../../this}}}
+                              {{{rxGenotypeDebug this ../../this noDataGenes}}}
                             </li>
                           {{/each}}
                         </ul>
@@ -274,7 +279,6 @@
                     {{else}}
                         <td>{{{rxImplications implications}}}</td>
                         <td class="drugRecommendation">{{{drugRecommendation}}}</td>
-                        <td>{{capitalizeNA comments}}</td>
                         <td>{{capitalizeNA classification}}</td>
                     {{/if}}
                   {{/each}}
@@ -291,24 +295,22 @@
                       {{/unless}}
                     </p>
                   </td>
-                  <td colspan="5" class="top-aligned">
-                    {{#if notCalled}}
+                  {{#if notCalled}}
+                    <td colspan="5" class="top-aligned">
                       <span class="rx-no-call">No call data for {{uncalledGenes}}</span>.
-                    {{else}}
-                      <div style="display: flex;">
-                        <div style="margin-right: 1em; {{#if (rxUnmatchedDiplotypesInferred this) }}padding-top: .15em;{{/if}}">
-                          <div class="hint">&nbsp;</div>
-                          No annotation for:
-                        </div>
-                        <div>
-                          <div class="hint">{{pluralize "Genotype" unmatchedDiplotypes}}</div>
-                          {{{rxUnmatchedDiplotypes unmatchedDiplotypes}}}
-                          {{#if unmatchedInferred}}<sup><a href="#rx-dagger-{{../../../drug}}" title="Inferred">&dagger;</a></sup>{{/if}}
-                          {{#if unmatchedDpydInferred}}<sup><a href="#rx-ddagger-{{../../../drug}}" title="Inferred">&ddagger;</a></sup>{{/if}}
-                        </div>
-                      </div>
-                    {{/if}}
-                  </td>
+                    </td>
+                  {{else}}
+                    <td class="top-aligned">
+                      <div class="hint">{{pluralize "Genotype" unmatchedDiplotypes}}</div>
+                      {{{rxUnmatchedDiplotypes unmatchedDiplotypes guidelines noDataGenes}}}
+                      {{#if unmatchedInferred}}<sup><a href="#rx-dagger-{{../../../drug}}" title="Inferred">&dagger;</a></sup>{{/if}}
+                      {{#if unmatchedDpydInferred}}<sup><a href="#rx-ddagger-{{../../../drug}}" title="Inferred">&ddagger;</a></sup>{{/if}}
+                    </td>
+                    <td colspan="4" class="top-aligned">
+                      <div class="hint">&nbsp;</div>
+                      {{source.displayName}} provides no genotype-based recommendations for the following genotype, after evaluating the evidence.
+                    </td>
+                  {{/if}}
                 </tr>
               {{/if}}
             {{/each}}
@@ -357,7 +359,7 @@
     {{#if (thereAre geneReports)}}
       <ol>
         {{#each geneReports}}
-          <li><a href="#{{geneDisplay}}">{{geneDisplay}} allele match data</a></li>
+          <li><a href="#{{{sanitizeCssSelector geneDisplay}}}">{{geneDisplay}} allele match data</a></li>
         {{/each}}
       </ol>
     {{/if}}
@@ -367,8 +369,8 @@
 
 
     {{#each geneReports}}
-      <section class="gene {{geneDisplay}}">
-        <h3 id="{{geneDisplay}}">{{geneDisplay}} allele match data</h3>
+      <section class="gene {{{sanitizeCssSelector geneDisplay}}}">
+        <h3 id="{{{sanitizeCssSelector geneDisplay}}}">{{geneDisplay}} allele match data</h3>
 
         {{#if (amdNoCall)}}
           <div class="alert alert-warning no-data">
@@ -419,8 +421,8 @@
                 <th>Alleles Not Considered:</th>
                 <td class="top-aligned">
                   <p>
-                    The following alleles are not considered due to {{amdTotalMissingVariants this}} missing positions of the
-                    total {{amdTotalVariants this}} positions: {{amdUncalledHaps this}}
+                    The following alleles are not considered due to {{amdTotalMissingVariants this}} missing positions
+                    of the total {{amdTotalVariants this}} positions: {{amdUncalledHaps this}}
                   </p>
                   <p>
                     Carriage of these alleles might result in a different phenotype and different guideline recommendations.
@@ -433,7 +435,7 @@
         {{/if}}
 
         {{#each (amdMessages this) }}
-          <div class="alert alert-warning {{messageClass this}}">{{{message}}}</div>
+          <div class="alert alert-warning {{messageClass this}}">{{{messageMessage this}}}</div>
         {{/each}}
 
         {{#unless (amdNoCall) }}
@@ -446,15 +448,15 @@
                 <th>RSID</th>
                 <th>Call in VCF</th>
                 <th>Reference</th>
-                <th>Related Alleles</th>
+                <th>Related Alleles and Function</th>
                 <th>Warnings</th>
               </tr>
               </thead>
               <tbody>
               {{#each variantReports}}
-                <tr>
+                <tr style="vertical-align: initial;">
                   <td id="{{chr}}_{{position}}">{{chr}}:{{position}}</td>
-                  <td id="{{dbSnpId}}">{{dbSnpId}}</td>
+                  <td {{#if (thereAre dbSnpId) }}id="{{dbSnpId}}"{{/if}}>{{dbSnpId}}</td>
                   {{#if missing}}
                     <td class="missingVariant"><div class="callMessage">Missing</div></td>
                   {{/if}}
@@ -465,12 +467,20 @@
                     {{{wildtypeAllele this}}}
                   </td>
                   <td>
-                    {{#each alleles}}{{this}} {{/each}}
+                    {{#if (thereAre alleles) }}
+                      <ul class="noBullet mt-0 mb-0">
+                        {{#each alleles}}
+                          {{{amdAlleleFunction functionMap geneDisplay dbSnpId this}}}
+                        {{/each}}
+                      </ul>
+                    {{/if}}
                   </td>
                   <td>
-                    <ul class="warningList">
-                      {{#each warnings}}<li>{{this}}</li>{{/each}}
-                    </ul>
+                    {{#if (thereAre warnings) }}
+                      <ul class="warningList">
+                        {{#each warnings}}<li>{{this}}</li>{{/each}}
+                      </ul>
+                    {{/if}}
                   </td>
                 </tr>
               {{/each}}
@@ -494,7 +504,7 @@
               <tbody>
               {{#each variantOfInterestReports}}
                 <tr>
-                  <td id="{{position}}">{{chr}}:{{position}}</td>
+                  <td id="{{chr}}_{{position}}">{{chr}}:{{position}}</td>
                   <td id="{{dbSnpId}}">{{dbSnpId}}</td>
                   {{#if missing}}
                     <td class="missingVariant"><em>missing</em></td>

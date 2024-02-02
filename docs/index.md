@@ -3,18 +3,21 @@ title: Home
 permalink: /
 nav_order: 1
 # version is dynamically updated - DO NOT MODIFY MANUALLY
-pharmcat_version: 2.5.0
+pharmcat_version: 2.9.0
 ---
 
 # PharmCAT:<br />Pharmacogenomics Clinical Annotation Tool
 
-<span style="float: right;">
-![PharmCAT logo](images/pharmcat_logo.png)
+<span class="logoDiv">
+<span>![PharmCAT logo](images/pharmcat_logo.png)</span>
+<span class="logoDiv__links">
+<span>[Download v{{ page.pharmcat_version }}](https://github.com/PharmGKB/PharmCAT/releases/latest){: .btn .btn-blue .umami--click--download-button }</span>
+<span>[View on GitHub](https://github.com/PharmGKB/PharmCAT){: .btn }</span>
+</span>
 </span>
 
-[Download v{{ page.pharmcat_version }}](https://github.com/PharmGKB/PharmCAT/releases/latest){: .btn .btn-blue .umami--click--download-button } [View on GitHub](https://github.com/PharmGKB/PharmCAT){: .btn }
 
-An active area of genomic medicine implementation at many health care organizations and academic medical centers includes development of decision support and return of results around pharmacogenomics.  One of the challenges in implementing pharmacogenomics is the representation of the information in clinical dosing guidelines, including star-allele haplotypes, and extracting these variants and haplotypes from genetic datasets.  In a collaboration between the [Pharmacogenomics Knowledgebase (PharmGKB)](https://www.pharmgkb.org) and the former [PGRN Statistical Analysis Resource (P-STAR)](http://www.pgrn.org/p-star.html), with input from other groups, we are developing a software tool to extract guideline variants from a genetic dataset (represented as a vcf), interpret the variant alleles, and generate a report with genotype-based prescribing recommendations which can be used to inform treatment decisions.
+An active area of genomic medicine implementation at many healthcare organizations and academic medical centers includes development of decision support and return of results around pharmacogenomics.  One of the challenges in implementing pharmacogenomics is the representation of the information in clinical dosing guidelines, including star-allele haplotypes, and extracting these variants and haplotypes from genetic datasets.  In a collaboration between the [Pharmacogenomics Knowledgebase (PharmGKB)](https://www.pharmgkb.org) and the former [PGRN Statistical Analysis Resource (P-STAR)](https://ritchielab.org/pgrn-star/), with input from other groups, we are developing a software tool to extract guideline variants from a genetic dataset (represented as a vcf), interpret the variant alleles, and generate a report with genotype-based prescribing recommendations which can be used to inform treatment decisions.
 
 The [Clinical Pharmacogenetics Implementation Consortium (CPIC)](https://cpicpgx.org) has established guidelines surrounding gene-drug pairs that can and should lead to treatment modifications based on genetic variants.  These guidelines are used for the initial version of PharmCAT, and other sources of PGx information and guidelines will be included in the future.
 
@@ -25,10 +28,13 @@ References:
 
 PharmCAT is under active development.
 
+[Subscribe to PharmCAT Updates](https://pharmgkb.us10.list-manage.com/subscribe?u=c46dea014a68524407fdbffa1&id=d0d1ec73ab){: .btn .btn-blue}
+
 
 ## Contact
 
-[Ask a Question](mailto:pharmcat@pharmgkb.org){: .btn .btn-blue .umami--click--contact } [Submit a Bug / Feature Request](https://github.com/PharmGKB/PharmCAT/issues/new){: .btn .umami--click--bug }
+[Ask a Question](mailto:pharmcat@pharmgkb.org){: .btn .btn-blue }
+[Submit a Bug / Feature Request](https://github.com/PharmGKB/PharmCAT/issues/new){: .btn }
 
 
 ## Documentation

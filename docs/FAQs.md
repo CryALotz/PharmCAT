@@ -56,6 +56,12 @@ For one thing, we do not know what "reference" is because it can vary based on y
 You have to decide on how accurate you want the data you provide to PharmCAT should be, especially if you're making any clinical decisions based on PharmCAT's results.  If you wish to make assumptions of your data, you are welcome to do so.  Instructions on how to do this can be found [here](/using/VCF-Requirements/#preparing-vcf-files).
 
 
+### VCF parsing errors
+
+PharmCAT and VCF Preprocessor is designed not to alter any info in the input VCF file. Please make sure your VCF file follow the VCF file specifications > 4.2.
+
+One example is a VCF file where the QUAL column has entries other than the allowed numeric numbers or a missing value `.`. In this case, PharmCAT will complain about the VCF file format. If this happens or you see other parsing errors, please check whether your VCF file follows the VCF file specifications, and if necessary, contact the bioinformatics tool team for a proper solution.
+
 ### Can I modify the definitions of alleles and phenotypes in PharmCAT?
 
 PharmCAT is open source and can be modified to satisfy your own needs.
@@ -81,6 +87,12 @@ way there.  We are currently unable to support anyone looking to do this at this
 providing actionable prescribing recommendations from authorities like CPIC and DPWG.
 
 
+### What happens if I provide an outside diplotype or phenotype for a gene also found in the VCF file?
+
+Outside calls provided by the user will override the results from the VCF file. Details about the relative priority of outside calls can be found on the [Outside Call Format page](/using/Outside-Call-Format#activity-score-genes).
+
+
+
 ## Output-related
 
 ### What are the meanings of _unassigned function_, _uncertain function_, _unknown function_ for allele function? And _N/A_, _no call_, _indeterminate_ for phenotype?
@@ -95,8 +107,15 @@ Indeterminate is a standardized CPIC phenotype term assigned to genotypes contai
 
 Please review the latest [CPIC SOP for assigning allele function](https://cpicpgx.org/resources/cpic-draft-allele-function-sop/) for further details or any updates on the definitions.
 
+### How to understand "_reference_" or "_*1_"?
+
+You will see "Reference" (for genes like _DPYD_, _RYR1_, _CACNA1S_, _CFTR_, etc.) or "*1" (for genes like _CYP2B6_, _CYP2C9_, etc.). _Reference_ or _*1_ indicate an absence of alternative genetic alleles at the PharmCAT interrogated genetic positions. They are assigned by default when no alternative variants are found at the queried positions. They do not suggest a lack of genetic variation at every position in the gene and should not be mistaken to mean an exact match to the entire reference sequence for the gene.
+
+For the gene _CFTR_, "_Reference_" in the PharmCAT report corresponds to "_ivacaftor non-reponsive CFTR sequnence_" in the CPIC guideline.
+
+
 ### How to render PharmCAT outputs into a tabular-formatted file
-PharmCAT is designed to take a single-sample VCF file and generate an individual PGx report in JSON or HTML formats. To support data analysis, we provide scripts and examples that render PharmCAT JSON outputs to tabular-formatted files. You can follow the instructions on this [PharmCAT multi-sample analysis page](https://pharmcat.org/technical-docs/multi-sample-analysis) for how to convert PharmCAT JSONs into TSV or CSV files.
+PharmCAT is designed to take a single-sample VCF file and generate an individual PGx report in JSON or HTML formats. To support data analysis, we provide scripts and examples that render PharmCAT JSON outputs to tabular-formatted files. You can follow the instructions on this [PharmCAT multi-sample analysis page](/using/Multi-Sample-Analysis) for how to convert PharmCAT JSONs into TSV or CSV files.
 
 ### Create one's own PDF report based on the PharmCAT .JSON file
 
@@ -106,6 +125,12 @@ Please note that PharmCAT is a research tool and note our disclaimers: [https://
 
 Note that PharmCAT is being actively developed, so there will be ongoing content updates and bug fixes. Additionally, in order for PharmCAT to stay current with alleles defined by [PharmVar](https://www.pharmvar.org) and recommendations from CPIC and DPWG, PharmCAT is continually being released with updates. If the most current version of PharmCAT is not being used at any given time, it may not be the most accurate or complete version.
 
+
+### Why do PharmCAT output have genetic variants that are not listed in the pharmcat_position.vcf?
+
+Some PGx allele-defining positions are multiallelic and can harbor other genetic variants. PharmCAT and VCF Preprocessor is designed not to alter any info in the input VCF file. As a result, it retains all genetic variants at PGx allele-defining positions represented in an input file. This, however, will not affect the appropriate PGx calls.
+
+
 ## Gene-specific
 
 ### Can PharmCAT call _CYP2D6_?
@@ -114,7 +139,7 @@ If you have access to whole genome sequencing (WGS) CRAM/BAM files, we strongly 
 Starting with v2.0, PharmCAT provides a research mode for calling CYP2D6. PharmCAT is designed to take VCF as input which is NOT a desirable file format for calling CYP2D6 alleles. This research mode for CYP2D6 calls alleles using ONLY SNPs and INDELs that are available in VCF files. Please note that this approach has many caveats. VCF can't handle structural variation (SV) and copy number variation (CNV) which are essential for calling CYP2D6 alleles, especially CNVs for ultrarapid metabolizers. VCF format cannot correctly reflect whole gene deletion (*5), which will lead to erroneous calls and beyond the capability of PharmCAT. CYP2D6 calls made from VCFs should not be used for clinical purposes. This research mode should be used at your own risk.
 
 
-### G6PD for male samples or samples with only one chrX
+### _G6PD_ for samples with only one chrX
 While PharmCAT supports hemizygotes for genes such as G6PD, you need to pay attention to how the G6PD genotypes are represented in your VCF especially for male samples or samples with only one X chromosome. Some samples only have one copy of the X chromosome, a.k.a., hemizygotes. Nonetheless, many variant calling software or bioinformatics pipelines do not necessarily consider the hemizygosity of the X chromosome in these samples and will represent these samples as homozygotes.
 
 Based on the VCF file format specifications, chrX should be observed as a haploid (_GT field = 0_) in a male with a single X chromosome and a diplotype (_GT field = 0/0_) in a female with two X chromosomes.
@@ -127,5 +152,5 @@ If you run PharmCAT on male samples or samples with only one chrX, be aware of t
 
 We will add the support for hemizygotes at the X chromosome in the PharmCAT VCF Preprocessor in the future.
 
-### Why is the CYP2C Cluster variant, rs12777823, in the CYP2C9 section of PharmCAT's JSON output?
+### Why is the _CYP2C_ Cluster variant, rs12777823, in the CYP2C9 section of PharmCAT's JSON output?
 PharmCAT includes an intergenic single nucleotide variation (SNV), rs12777823, based on the [CPIC warfarin guideline](https://cpicpgx.org/guidelines/guideline-for-warfarin-and-cyp2c9-and-vkorc1/). This SNV is in the _CYP2C_ cluster on chromosome 10 but independent of the _CYP2C9_ gene, and is listed independently in the PharmCAT HTML report. However, the PharmCAT JSON output is gene-dependent. For this reason, rs12777823 is nested under _CYP2C9_ as a _CYP2C_ POI (position of interest) in the JSON even though the SNV is not located within the _CYP2C9_ gene boundary and does not affect _CYP2C9_ genotype or phenotype.

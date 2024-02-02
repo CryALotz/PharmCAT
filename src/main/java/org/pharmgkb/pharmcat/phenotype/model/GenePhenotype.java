@@ -3,6 +3,9 @@ package org.pharmgkb.pharmcat.phenotype.model;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.SortedSet;
+import java.util.stream.Collectors;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import org.apache.commons.lang3.StringUtils;
@@ -31,7 +34,10 @@ public class GenePhenotype {
   private Map<String,String> m_activityValues = new HashMap<>();
   @SerializedName("diplotypes")
   @Expose
-  private List<DiplotypeRecord> m_diplotypes;
+  private SortedSet<DiplotypeRecord> m_diplotypes;
+  @SerializedName("namedAlleles")
+  @Expose
+  private List<HaplotypeRecord> m_namedAlleles;
   @SerializedName(value = "version", alternate = {"cpicVersion"})
   @Expose
   private String m_version;
@@ -53,6 +59,9 @@ public class GenePhenotype {
   }
 
 
+  /**
+   * Map of a haplotype name (e.g. *1) to an activity value (e.g. 1.0) if applicable. Not all genes use activity values
+   */
   public Map<String,String> getActivityValues() {
     return m_activityValues;
   }
@@ -65,15 +74,22 @@ public class GenePhenotype {
   }
 
   public boolean isMatchedByActivityScore() {
-    return m_activityValues.size() > 0;
+    return !m_activityValues.isEmpty() && m_activityValues.values().stream()
+        .filter(StringUtils::isNotBlank)
+        .anyMatch(v -> !v.equalsIgnoreCase(TextConstants.NA));
   }
 
 
   public String getHaplotypeFunction(String haplotype) {
-    if (StringUtils.isBlank(haplotype) || m_haplotypes == null) {
+    if (StringUtils.isBlank(haplotype) || m_namedAlleles == null) {
       return UNASSIGNED_FUNCTION;
     }
-    return m_haplotypes.getOrDefault(haplotype, UNASSIGNED_FUNCTION);
+
+    return m_namedAlleles.stream()
+        .filter(n -> n.getName().equals(haplotype))
+        .findFirst()
+        .map(HaplotypeRecord::getFunctionValue)
+        .orElse(UNASSIGNED_FUNCTION);
   }
 
   public @Nullable String getHaplotypeActivity(String haplotype) {
@@ -92,8 +108,28 @@ public class GenePhenotype {
   /**
    * List of all diplotype to phenotype mappings for this gene
    */
-  public List<DiplotypeRecord> getDiplotypes() {
+  public SortedSet<DiplotypeRecord> getDiplotypes() {
     return m_diplotypes;
+  }
+
+  public List<HaplotypeRecord> getNamedAlleles() {
+    return m_namedAlleles;
+  }
+
+  public Optional<DiplotypeRecord> findDiplotype(Map<String,Integer> diplotypeKey) {
+    List<DiplotypeRecord> diplotypes = m_diplotypes.stream()
+        .filter(d -> d.matchesKey(diplotypeKey))
+        .toList();
+    if (diplotypes.size() == 1) {
+      return Optional.of(diplotypes.get(0));
+    } else if (diplotypes.isEmpty()) {
+      return Optional.empty();
+    }
+    // should never happen, DataManager should have caught this
+    throw new IllegalStateException(diplotypes.size() + " diplotypes found for " + m_gene + " for " +
+        diplotypeKey.keySet().stream()
+            .map(k -> k + " (" + diplotypeKey.get(k) + ")")
+            .collect(Collectors.joining(", ")));
   }
 
 

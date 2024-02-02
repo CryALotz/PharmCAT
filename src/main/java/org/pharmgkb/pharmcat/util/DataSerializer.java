@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +38,7 @@ public class DataSerializer {
       .serializeNulls()
       .disableHtmlEscaping()
       .excludeFieldsWithoutExposeAnnotation()
+      .registerTypeAdapter(Date.class, new GsonDateAdapter())
       .setPrettyPrinting()
       .create();
   private static final Pattern sf_rsidPattern = Pattern.compile("rs\\d+");
@@ -162,10 +164,14 @@ public class DataSerializer {
       }
     }
     String[] requiredKeys = new String[] {
-        MessageHelper.MSG_CYP2D6_MODE,
-        MessageHelper.MSG_CYP2D6_NOTE,
         MessageHelper.MSG_COMBO_NAMING,
         MessageHelper.MSG_COMBO_UNPHASED,
+        MessageHelper.MSG_CYP2D6_MODE,
+        MessageHelper.MSG_CYP2D6_NOTE,
+        MessageHelper.MSG_DPYD_HAPB3_EXONIC_ONLY,
+        MessageHelper.MSG_DPYD_HAPB3_INTRONIC_MISMATCH_EXONIC,
+        MessageHelper.MSG_MULTI_CALL,
+        MessageHelper.MSG_MULTI_SCORE,
         MessageHelper.MSG_OUTSIDE_CALL,
     };
     for (String key : requiredKeys) {

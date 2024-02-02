@@ -25,6 +25,7 @@ import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 import org.apache.commons.lang3.StringUtils;
 import org.pharmgkb.pharmcat.Env;
+import org.pharmgkb.pharmcat.phenotype.model.GenePhenotype;
 import org.pharmgkb.pharmcat.reporter.ReportContext;
 import org.pharmgkb.pharmcat.reporter.format.html.Recommendation;
 import org.pharmgkb.pharmcat.reporter.handlebars.ReportHelpers;
@@ -119,7 +120,8 @@ public class HtmlFormat extends AbstractFormat {
     boolean hasUndocumentedVariationsAsReference = false;
 
     SortedSetMultimap<String, GeneReport> geneReportMap = TreeMultimap.create();
-    for (DataSource source : reportContext.getGeneReports().keySet()) {
+    Map<String, Map<String, String>> functionMap = new HashMap<>();
+    for (DataSource source : new TreeSet<>(reportContext.getGeneReports().keySet())) {
       if (!m_sources.contains(source)) {
         continue;
       }
@@ -128,10 +130,19 @@ public class HtmlFormat extends AbstractFormat {
         if (geneReport.isIgnored()) {
           continue;
         }
+
         String symbol = geneReport.getGeneDisplay();
         totalGenes.add(symbol);
         if (!m_compact) {
           geneReportMap.put(symbol, geneReport);
+        }
+
+        // CPIC gets sorted first, this will pick CPIC over DPWG
+        if (!functionMap.containsKey(symbol)) {
+          GenePhenotype genePhenotype = getEnv().getPhenotype(symbol, source);
+          if (genePhenotype != null) {
+            functionMap.put(symbol, genePhenotype.getHaplotypes());
+          }
         }
 
         if (geneReport.isNoData()) {
@@ -210,6 +221,7 @@ public class HtmlFormat extends AbstractFormat {
         .toList());
     // Section III
     result.put("geneReports", geneReports);
+    result.put("functionMap", functionMap);
 
     // Section II: Prescribing Recommendations
     SortedMap<String, Map<DataSource, DrugReport>> drugReports = new TreeMap<>();
@@ -277,7 +289,7 @@ public class HtmlFormat extends AbstractFormat {
         if (report.getCallSource() == CallSource.MATCHER) {
           if (isSlco1b1(symbol)) {
             summary.put("diplotypes", report.getRecommendationDiplotypes());
-          } else if (isDpyd(symbol) && report.getMatcherComponentHaplotypes().size() > 0) {
+          } else if (isDpyd(symbol) && !report.getMatcherComponentHaplotypes().isEmpty()) {
             summary.put("showComponents", true);
             summary.put("diplotypes", report.getSourceDiplotypes().first());
             summary.put("componentDiplotypes", report.getMatcherComponentHaplotypes());
@@ -287,6 +299,7 @@ public class HtmlFormat extends AbstractFormat {
         } else {
           summary.put("diplotypes", report.getRecommendationDiplotypes());
         }
+        summary.put("homozygousComponentHaplotypes", report.getMatcherHomozygousComponentHaplotypes());
         summary.put("hasMissingVariants", report.isMissingVariants());
         summary.put("showUnphasedNote", showUnphasedNote(report));
         summary.put("hasUndocumentedVariants", report.isHasUndocumentedVariations());
@@ -294,7 +307,7 @@ public class HtmlFormat extends AbstractFormat {
         summary.put("geneReport", report);
 
       } else {
-        // TODO(markwoon): check if functionality is different?
+        // TODO(markwoon): do we need to do anything special when there are GeneReports from more than 1 source?
       }
     }
 

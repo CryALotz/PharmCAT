@@ -15,6 +15,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.TestInfo;
+import org.opentest4j.AssertionFailedError;
 import org.pharmgkb.pharmcat.reporter.ReportContext;
 import org.pharmgkb.pharmcat.reporter.handlebars.ReportHelpers;
 import org.pharmgkb.pharmcat.reporter.model.DataSource;
@@ -24,8 +25,6 @@ import org.pharmgkb.pharmcat.reporter.model.result.DiplotypeTest;
 import org.pharmgkb.pharmcat.reporter.model.result.DrugReport;
 import org.pharmgkb.pharmcat.reporter.model.result.GeneReport;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.junit.jupiter.api.Assertions.*;
 
 
@@ -39,6 +38,7 @@ class PipelineWrapper {
   private static boolean m_compact = true;
   private static List<DataSource> m_sources = Lists.newArrayList(DataSource.CPIC, DataSource.DPWG);
 
+  private final Env m_env;
   private final Path m_outputPath;
   private final TestVcfBuilder m_vcfBuilder;
   private final boolean m_findCombinations;
@@ -57,19 +57,29 @@ class PipelineWrapper {
   }
 
 
-  PipelineWrapper(TestInfo testInfo, boolean allMatches) throws IOException {
+  PipelineWrapper(TestInfo testInfo, boolean allMatches) throws IOException, ReportableException {
     this(testInfo, false, allMatches, false);
   }
 
   PipelineWrapper(TestInfo testInfo, boolean findCombinations, boolean allMatches, boolean callCyp2d6)
-      throws IOException {
+      throws IOException, ReportableException {
+    this(testInfo, null, findCombinations, allMatches, callCyp2d6);
+  }
+
+  PipelineWrapper(TestInfo testInfo, @Nullable String name, boolean findCombinations, boolean allMatches,
+      boolean callCyp2d6) throws IOException, ReportableException {
     Preconditions.checkNotNull(testInfo);
 
+    m_env = new Env();
     m_outputPath = TestUtils.getTestOutputDir(testInfo, false);
     if (!Files.isDirectory(m_outputPath)) {
       Files.createDirectories(m_outputPath);
     }
-    m_vcfBuilder = new TestVcfBuilder(testInfo).saveFile();
+    if (name == null) {
+      m_vcfBuilder = new TestVcfBuilder(testInfo).saveFile();
+    } else {
+      m_vcfBuilder = new TestVcfBuilder(testInfo, name).saveFile();
+    }
     m_findCombinations = findCombinations;
     m_callCyp2d6 = callCyp2d6;
     m_topCandidatesOnly = !allMatches;
@@ -89,19 +99,23 @@ class PipelineWrapper {
   }
 
   @Nullable Path execute(Path outsideCallPath) throws Exception {
+    return execute(outsideCallPath, false);
+  }
+
+  @Nullable Path execute(Path outsideCallPath, boolean allowNoData) throws Exception {
     Path vcfFile = null;
     VcfFile vcfFileObj = null;
     boolean runMatcher = false;
-    if (m_vcfBuilder.hasData()) {
+    if (m_vcfBuilder.hasData() || allowNoData) {
       runMatcher = true;
       vcfFile = m_vcfBuilder.generate();
       vcfFileObj = new VcfFile(vcfFile, false);
     }
-    Pipeline pcat = new Pipeline(new Env(),
+    Pipeline pcat = new Pipeline(m_env,
         runMatcher, vcfFileObj, null, true,
         m_topCandidatesOnly, m_callCyp2d6, m_findCombinations, true,
         true, null, outsideCallPath,
-        true, null, null, m_sources, m_compactReport, true,
+        true, null, null, m_sources, m_compactReport, true, true,
         m_outputPath, null, m_compactReport,
         Pipeline.Mode.TEST, null, false
     );
@@ -111,29 +125,32 @@ class PipelineWrapper {
   }
 
 
-  void testCpicMatcher(String gene, String... diplotypes) {
-    GeneReport geneReport = getContext().getGeneReport(DataSource.CPIC, gene);
-    assertNotNull(geneReport);
-    List<String> dips = geneReport.getSourceDiplotypes().stream()
-        .map(Diplotype::getLabel)
-        .sorted()
-        .toList();
-    try {
-      assertThat(dips, contains(diplotypes));
-    } catch (AssertionError ex) {
-      System.out.println(printDiagnostic(geneReport));
-      throw ex;
-    }
+  public Env getEnv() {
+    return m_env;
   }
+
+
+  private List<String> stripHomozygousNotes(List<String> calls) {
+    return calls.stream()
+        .map(d -> {
+          if (d.endsWith(" (homozygous)")) {
+            return d.substring(0, d.length() - 13);
+          }
+          return d;
+        })
+        .toList();
+  }
+
 
   void testSourceDiplotypes(DataSource source, String gene, List<String> diplotypes) {
     GeneReport geneReport = getContext().getGeneReport(source, gene);
     assertNotNull(geneReport);
-    List<String> dips = geneReport.getSourceDiplotypes().stream()
+    List<String> actualDiplotypes = geneReport.getSourceDiplotypes().stream()
         .map(Diplotype::getLabel)
         .toList();
+    List<String> expectedDiplotypes = stripHomozygousNotes(diplotypes);
     try {
-      assertEquals(diplotypes, dips);
+      assertEquals(expectedDiplotypes, actualDiplotypes);
     } catch (AssertionError ex) {
       System.out.println(printDiagnostic(geneReport));
       throw ex;
@@ -159,9 +176,10 @@ class PipelineWrapper {
   void testPrintCalls(DataSource source, String gene, List<String> calls) {
     GeneReport geneReport = getContext().getGeneReport(source, gene);
     assertNotNull(geneReport);
-    List<String> dips = ReportHelpers.amdGeneCalls(geneReport);
+    List<String> actualCalls = ReportHelpers.amdGeneCalls(geneReport);
+    List<String> expectedCalls = stripHomozygousNotes(calls);
     try {
-      assertEquals(calls, dips);
+      assertEquals(expectedCalls, actualCalls);
     } catch (AssertionError ex) {
       System.out.println(printDiagnostic(geneReport));
       throw ex;
@@ -209,7 +227,7 @@ class PipelineWrapper {
    * otherwise specify two haplotype names
    */
   void testRecommendedDiplotypes(DataSource source, String gene, List<String> haplotypes) {
-    Preconditions.checkArgument(haplotypes.size() >= 1 && haplotypes.size() <= 2,
+    Preconditions.checkArgument(!haplotypes.isEmpty() && haplotypes.size() <= 2,
         "Can only test on 1 or 2 haplotypes, got " + haplotypes.size());
 
     GeneReport geneReport = getContext().getGeneReport(source, gene);
@@ -221,6 +239,7 @@ class PipelineWrapper {
     assertTrue(geneReport.isReportable(), "Not reportable: " + geneReport.getRecommendationDiplotypes());
 
     Map<String, Integer> lookup = new HashMap<>();
+    haplotypes = stripHomozygousNotes(haplotypes);
     if (haplotypes.size() == 2) {
       if (haplotypes.get(0).equals(haplotypes.get(1))) {
         lookup.put(haplotypes.get(0), 2);
@@ -289,12 +308,18 @@ class PipelineWrapper {
    */
   void testNotCalledByMatcher(String... genes) {
     Preconditions.checkArgument(genes != null && genes.length > 0);
-    Arrays.stream(genes)
-        .forEach(g -> {
-          assertTrue(getContext().getGeneReports(g).stream().allMatch(GeneReport::isOutsideCall) ||
-                  getContext().getGeneReports(g).stream().noneMatch(GeneReport::isCalled),
-              g + " is called");
-        });
+    for (String g : genes) {
+      try {
+        assertTrue(getContext().getGeneReports(g).stream().allMatch(GeneReport::isOutsideCall) ||
+                getContext().getGeneReports(g).stream().noneMatch(GeneReport::isCalled),
+            g + " is called");
+      } catch (AssertionFailedError ex) {
+        for (GeneReport gr : getContext().getGeneReports(g)) {
+          System.out.println(printDiagnostic(gr));
+        }
+        throw ex;
+      }
+    }
   }
 
   /**
@@ -314,10 +339,6 @@ class PipelineWrapper {
 
   void testMatchedAnnotations(String drugName, DataSource source, int expectedCount) {
     DrugReport drugReport = getContext().getDrugReport(source, drugName);
-    if (expectedCount == 0) {
-      assertNull(drugReport);
-      return;
-    }
     assertNotNull(drugReport);
     assertEquals(expectedCount, drugReport.getMatchedAnnotationCount(),
         drugName + " has " + drugReport.getMatchedAnnotationCount() + " matching " + source +

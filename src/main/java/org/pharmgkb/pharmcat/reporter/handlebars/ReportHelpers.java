@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -14,6 +13,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import com.google.common.html.HtmlEscapers;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.util.TextUtils;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.pharmgkb.pharmcat.phenotype.model.GenePhenotype;
 import org.pharmgkb.pharmcat.reporter.TextConstants;
 import org.pharmgkb.pharmcat.reporter.format.html.Report;
 import org.pharmgkb.pharmcat.reporter.model.DataSource;
@@ -57,7 +59,7 @@ public class ReportHelpers {
   public static String listGenes(Collection<String> genes) {
     StringBuilder builder = new StringBuilder();
     for (String gene : genes) {
-      if (builder.length() > 0) {
+      if (!builder.isEmpty()) {
         builder.append(", ");
       }
       builder.append("<a href=\"#")
@@ -133,7 +135,7 @@ public class ReportHelpers {
     String[] alleles = call.split("/");
     StringBuilder builder = new StringBuilder();
     for (String allele : alleles) {
-      if (builder.length() > 0) {
+      if (!builder.isEmpty()) {
         builder.append("/<br />");
       }
       if (allele.length() > 8) {
@@ -156,7 +158,7 @@ public class ReportHelpers {
   }
 
 
-  public static String gsCall(Diplotype diplotype) {
+  public static String gsCall(Diplotype diplotype, Collection<String> homozygousComponentHaplotypes) {
     if (diplotype.isUnknownAlleles()) {
       return "<span class=\"gs-uncalled-" + HtmlEscapers.htmlEscaper().escape(diplotype.getGene()) + "\">" + UNCALLED + "</span>";
     }
@@ -167,6 +169,9 @@ public class ReportHelpers {
       }
       diplotype = diplotype.getInferredSourceDiplotypes().first();
     }
+    if (homozygousComponentHaplotypes.contains(diplotype.getLabel())) {
+      return HtmlEscapers.htmlEscaper().escape(diplotype.getLabel() + " (homozygous)");
+    }
     return HtmlEscapers.htmlEscaper().escape(diplotype.getLabel());
   }
 
@@ -175,35 +180,31 @@ public class ReportHelpers {
       return TextConstants.SEE_DRUG;
     }
 
-    String f1 = diplotype.getAllele1() != null && diplotype.getAllele1().getFunction() != null ?
-        diplotype.getAllele1().getFunction() : null;
-    String f2 = diplotype.getAllele2() != null && diplotype.getAllele2().getFunction() != null ?
-        diplotype.getAllele2().getFunction() : null;
-    boolean isSinglePloidy = diplotype.getAllele1() != null && diplotype.getAllele2() == null;
-    if (isSinglePloidy) {
-      if (StringUtils.isNotBlank(f1)) {
-        return f1;
-      }
+    String f1 = diplotype.getAllele1() != null && diplotype.getAllele1().toFormattedFunction() != null ?
+        diplotype.getAllele1().toFormattedFunction() : null;
+    String f2 = diplotype.getAllele2() != null && diplotype.getAllele2().toFormattedFunction() != null ?
+        diplotype.getAllele2().toFormattedFunction() : null;
+
+    if (f1 == null && f2 == null) {
+      return TextConstants.NA.toUpperCase();
+    } else if (f2 == null) {
+      return f1;
     } else {
-      if (StringUtils.isNotBlank(f1) && StringUtils.isNotBlank(f2)) {
-        if (f1.equals(f2)) {
-          return String.format("Two %s alleles", f1);
-        }
-        else {
-          String[] functions = new String[]{f1, f2};
-          Arrays.sort(functions);
-          return String.format("One %s allele and one %s allele", functions[0], functions[1]);
-        }
+      if (f2.equals(f1)) {
+        return String.format("Two %s alleles", f1);
+      } else {
+        String[] functions = new String[]{f1, f2};
+        Arrays.sort(functions);
+        return String.format("One %s allele and one %s allele", functions[0], functions[1]);
       }
     }
-    return TextConstants.NA.toUpperCase();
   }
 
   public static String gsPhenotype(Diplotype diplotype) {
     if (isDpyd(diplotype.getGene())) {
       return TextConstants.SEE_DRUG;
     }
-    if (diplotype.getPhenotypes().size() == 0) {
+    if (diplotype.getPhenotypes().isEmpty()) {
       return TextConstants.NA.toUpperCase();
     }
     return String.join("; ", diplotype.getPhenotypes());
@@ -237,16 +238,16 @@ public class ReportHelpers {
         .noneMatch(g -> g.equals("DPYD"));
   }
 
-  public static String rxGenotype(Genotype genotype, AnnotationReport annotationReport,
-      GuidelineReport guidelineReport) {
-    if (genotype.getDiplotypes().size() == 0) {
+  public static String rxGenotype(Genotype genotype, AnnotationReport annotationReport, GuidelineReport guidelineReport,
+      SortedSet<String> noDataGenes) {
+    if (genotype.getDiplotypes().isEmpty()) {
       return TextConstants.UNKNOWN_GENOTYPE;
     }
     StringBuilder builder = new StringBuilder()
-      .append(renderRxDiplotypes(genotype.getDiplotypes(), false));
-    if (annotationReport.getHighlightedVariants().size() > 0) {
+      .append(renderRxDiplotypes(genotype.getDiplotypes(), false, noDataGenes, guidelineReport));
+    if (!annotationReport.getHighlightedVariants().isEmpty()) {
       for (String var : annotationReport.getHighlightedVariants()) {
-        if (builder.length() > 0) {
+        if (!builder.isEmpty()) {
           builder.append(";<br />");
         }
         builder.append("<span class=\"rx-hl-var\">")
@@ -257,25 +258,28 @@ public class ReportHelpers {
     return builder.toString();
   }
 
-  public static String rxGenotypeDebug(Genotype genotype, GuidelineReport guidelineReport) {
+  public static String rxGenotypeDebug(Genotype genotype, GuidelineReport guidelineReport,
+      SortedSet<String> noDataGenes) {
     if (!s_debugMode) {
       return "";
     }
 
     boolean hasInferred = genotype.getDiplotypes().stream()
-        .anyMatch(d -> d.getInferredSourceDiplotypes() != null && d.getInferredSourceDiplotypes().size() > 0);
+        .anyMatch(d -> d.getInferredSourceDiplotypes() != null && !d.getInferredSourceDiplotypes().isEmpty());
     if (hasInferred) {
       return "<div class=\"alert alert-debug\">" +
           "<div class=\"hint\">Inferred:</div>" +
           "<span class=\"nowrap\">" +
-          renderRxDiplotypes(genotype.getDiplotypes(), true) +
+          renderRxDiplotypes(genotype.getDiplotypes(), true, noDataGenes, guidelineReport) +
           "</span></div>";
     }
     return "";
   }
 
-  public static String rxUnmatchedDiplotypes(SortedSet<Diplotype> diplotypes) {
-    return renderRxDiplotypes(diplotypes, true, false, "rx-unmatched-dip");
+  public static String rxUnmatchedDiplotypes(SortedSet<Diplotype> diplotypes, SortedSet<GuidelineReport> guidelines,
+      SortedSet<String> noDataGenes) {
+    return renderRxDiplotypes(diplotypes, true, false, "rx-unmatched-dip", noDataGenes,
+        guidelines.first());
   }
 
   public static boolean rxUnmatchedDiplotypesInferred(Report report) {
@@ -284,12 +288,13 @@ public class ReportHelpers {
   }
 
 
-  private static String renderRxDiplotypes(Collection<Diplotype> diplotypes, boolean forDebug) {
-    return renderRxDiplotypes(diplotypes, false, forDebug, "rx-dip");
+  private static String renderRxDiplotypes(Collection<Diplotype> diplotypes, boolean forDebug,
+      SortedSet<String> noDataGenes, GuidelineReport guidelineReport) {
+    return renderRxDiplotypes(diplotypes, false, forDebug, "rx-dip", noDataGenes, guidelineReport);
   }
 
   private static String renderRxDiplotypes(Collection<Diplotype> diplotypes, boolean noLengthLimit, boolean forDebug,
-      String dipClass) {
+      String dipClass, SortedSet<String> noDataGenes, @Nullable GuidelineReport guidelineReport) {
     SortedSet<Diplotype> displayDiplotypes = new TreeSet<>();
     for (Diplotype diplotype : diplotypes) {
       if (!forDebug && diplotype.getInferredSourceDiplotypes() != null) {
@@ -301,7 +306,7 @@ public class ReportHelpers {
 
     StringBuilder builder = new StringBuilder();
     for (Diplotype diplotype : displayDiplotypes) {
-      if (builder.length() > 0) {
+      if (!builder.isEmpty()) {
         builder.append(";<br />");
       }
       builder.append("<span");
@@ -310,28 +315,39 @@ public class ReportHelpers {
             .append(dipClass)
             .append("\"");
       }
-      builder.append("><a href=\"#")
-          .append(diplotype.getGene())
-          .append("\">")
-          .append(diplotype.getGene())
-          .append("</a>:");
-      String call = diplotype.getLabel();
-      if (noLengthLimit || call.length() <= 15) {
-        builder.append(call);
+      builder.append(">");
+      if (noDataGenes != null && noDataGenes.contains(diplotype.getGene())) {
+        builder.append(diplotype.getGene())
+            .append(":")
+            .append(TextConstants.NO_DATA);
       } else {
-        int idx = call.indexOf("/");
-        if (idx == -1) {
-          builder.append("<br />")
-              .append(call);
+        builder.append("<a href=\"#")
+            .append(diplotype.getGene())
+            .append("\">")
+            .append(diplotype.getGene())
+            .append("</a>");
+        builder.append(":");
+        String call = diplotype.getLabel();
+        if (noLengthLimit || call.length() <= 15) {
+          builder.append(call);
         } else {
-          String a = call.substring(0, idx + 1);
-          String b = call.substring(idx + 1);
-          if (a.length() > 15) {
-            builder.append("<br />");
+          int idx = call.indexOf("/");
+          if (idx == -1) {
+            builder.append("<br />")
+                .append(call);
+          } else {
+            String a = call.substring(0, idx + 1);
+            String b = call.substring(idx + 1);
+            if (a.length() > 15) {
+              builder.append("<br />");
+            }
+            builder.append(a)
+                .append("<br />")
+                .append(b);
           }
-          builder.append(a)
-              .append("<br />")
-              .append(b);
+        }
+        if (guidelineReport != null && guidelineReport.getHomozygousComponentHaplotypes().contains(call)) {
+          builder.append(" (homozygous)");
         }
       }
       builder.append("</span>");
@@ -341,22 +357,17 @@ public class ReportHelpers {
 
 
 
-  public static String rxImplications(SortedMap<String, String> implications) {
-    if (implications.size() == 0) {
+  public static String rxImplications(List<String> implications) {
+    if (implications.isEmpty()) {
       return "";
     }
     if (implications.size() == 1) {
-      Map.Entry<String, String> entry = implications.entrySet().iterator().next();
-      return entry.getKey() + ": " + capitalizeNA(entry.getValue());
+      return implications.get(0);
     }
     StringBuilder builder = new StringBuilder()
         .append("<ul class=\"noPadding mt-0\">");
-    for (Map.Entry<String, String> entry : implications.entrySet()) {
-      builder.append("<li>")
-          .append(entry.getKey())
-          .append(": ")
-          .append(capitalizeNA(entry.getValue()))
-          .append("</li>");
+    for (String entry : implications) {
+      builder.append("<li>").append(capitalizeNA(entry)).append("</li>");
     }
     builder.append("</ul>");
     return builder.toString();
@@ -368,11 +379,29 @@ public class ReportHelpers {
         .toList();
   }
 
+  public static String annotationTags(AnnotationReport annotationReport) {
+    List<String> tags = new ArrayList<>();
+    if (annotationReport.isAlternateDrugAvailable()) {
+      tags.add("<div class=\"tag\">Alternate Drug</div>");
+    }
+    if (annotationReport.isDosingInformation()) {
+      tags.add("<div class=\"tag\">Dosing Info</div>");
+    }
+    if (annotationReport.isOtherPrescribingGuidance()) {
+      tags.add("<div class=\"tag\">Other Guidance</div>");
+    }
+    if (!tags.isEmpty()) {
+      return String.join("\n", tags);
+    } else {
+      return "<div class=\"tag noAction\">No Action</div>";
+    }
+  }
+
 
   public static String amdSubtitle(GeneReport geneReport) {
     StringBuilder builder = new StringBuilder();
 
-    if (isDpyd(geneReport.getGene()) && geneReport.getMatcherComponentHaplotypes().size() == 0) {
+    if (isDpyd(geneReport.getGene()) && geneReport.getMatcherComponentHaplotypes().isEmpty()) {
       builder.append("Haplotype");
     } else {
       builder.append("Genotype");
@@ -393,10 +422,30 @@ public class ReportHelpers {
     if (report.getCallSource() == CallSource.NONE) {
       return true;
     } else if (report.getCallSource() == CallSource.MATCHER) {
-      return report.getVariantReports().size() == 0 ||
+      return report.getVariantReports().isEmpty() ||
           report.getVariantReports().stream().allMatch(VariantReport::isMissing);
     }
     return false;
+  }
+
+  public static String amdAlleleFunction(Map<String, Map<String, String>> functionMap, String gene, String dbSnpId,
+      String allele) {
+    if (gene.equals("CYP2C19")) {
+      // special case to deal with CYP2C19 *1/*38
+      if (allele.equalsIgnoreCase("*1")) {
+        if (!"rs3758581".equalsIgnoreCase(dbSnpId)) {
+          return "";
+        }
+      }
+    }
+    Map<String, String> functions = functionMap.get(gene);
+    if (functions != null) {
+      String function = functions.get(allele);
+      if (function != null) {
+        return "<li>" + allele + " - " + function + "</li>";
+      }
+    }
+    return "<li>" + allele + " - " + GenePhenotype.UNASSIGNED_FUNCTION + "</li>";
   }
 
   public static String amdNoDataMessage(Collection<String> compactNoDataGenes) {
@@ -447,7 +496,7 @@ public class ReportHelpers {
 
   public static boolean amdHasUncalledHaps(GeneReport geneReport) {
     return geneReport.getUncalledHaplotypes() != null &&
-        geneReport.getUncalledHaplotypes().size() > 0;
+        !geneReport.getUncalledHaplotypes().isEmpty();
   }
 
   public static String amdUncalledHaps(GeneReport geneReport) {
@@ -500,13 +549,16 @@ public class ReportHelpers {
     }
     //noinspection rawtypes
     if (obj instanceof Collection col) {
-      return col.size() > 0;
+      return !col.isEmpty();
     }
     //noinspection rawtypes
     if (obj instanceof Map map) {
-      return map.size() > 0;
+      return !map.isEmpty();
     }
-    return false;
+    if (obj instanceof String str) {
+      return !str.isEmpty();
+    }
+    return true;
   }
 
 
@@ -523,7 +575,8 @@ public class ReportHelpers {
   }
 
   public static String sanitizeCssSelector(String value) {
-    return value.replaceAll("\\W+", "_")
+    return value.replaceAll("[^\\w-]+", "_")
+        .replaceAll("_-_", "-")
         .replaceAll("_+", "_")
         .replaceAll("^_+", "")
         .replaceAll("_+$", "");
@@ -542,8 +595,11 @@ public class ReportHelpers {
   }
 
   public static String capitalizeNA(String text) {
-    if (TextConstants.NA.equalsIgnoreCase(text)) {
-      return "N/A";
+    if (TextUtils.isBlank(text)) {
+      return UNSPECIFIED;
+    }
+    else if (TextConstants.NA.equalsIgnoreCase(text)) {
+      return TextConstants.NA.toUpperCase();
     }
     return text;
   }
@@ -553,5 +609,24 @@ public class ReportHelpers {
         .replaceAll("\\p{Punct}", "-")
         .replaceAll("\\s+", "-")
         .replaceAll("-+", "-");
+  }
+
+  private static final Pattern sf_pmidPattern = Pattern.compile("(.*)PMID:(\\d+)(.*)");
+
+  public static String messageMessage(MessageAnnotation msg) {
+    String text = msg.getMessage();
+    Matcher m = sf_pmidPattern.matcher(text);
+    if (m.matches()) {
+      StringBuilder builder = new StringBuilder();
+      while (m.matches()) {
+        builder.append(m.group(1))
+            .append(externalHref("https://pubmed.ncbi.nlm.nih.gov/" + m.group(2), "PMID:" + m.group(2)));
+        text = m.group(3);
+        m = sf_pmidPattern.matcher(text);
+      }
+      builder.append(text);
+      return builder.toString();
+    }
+    return text;
   }
 }

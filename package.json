@@ -1,6 +1,6 @@
 {
   "name": "pharmcat",
-  "version": "2.5.0",
+  "version": "2.9.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/PharmGKB/PharmCAT.git"
@@ -11,11 +11,11 @@
   },
   "packageManager": "yarn@3.5.0",
   "devDependencies": {
-    "@google/semantic-release-replace-plugin": "1.2.0",
+    "@google/semantic-release-replace-plugin": "1.2.7",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/git": "10.0.1",
-    "conventional-changelog-conventionalcommits": "6.0.0",
-    "semantic-release": "21.0.5",
+    "conventional-changelog-conventionalcommits": "7.0.2",
+    "semantic-release": "22.0.5",
     "showdown": "2.1.0"
   },
   "release": {

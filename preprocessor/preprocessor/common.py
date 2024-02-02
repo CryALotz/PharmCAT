@@ -2,11 +2,11 @@ from pathlib import Path
 
 
 # version is dynamically updated - DO NOT MODIFY MANUALLY
-PHARMCAT_VERSION = '2.5.0'
+PHARMCAT_VERSION = '2.9.0'
 
 # expected tool versions
-MIN_BCFTOOLS_VERSION = '1.16'
-MIN_BGZIP_VERSION = '1.16'
+MIN_BCFTOOLS_VERSION = '1.18'
+MIN_BGZIP_VERSION = '1.18'
 MIN_JAVA_VERSION = '17'
 
 # default filenames

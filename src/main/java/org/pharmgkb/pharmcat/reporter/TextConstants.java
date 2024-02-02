@@ -17,6 +17,8 @@ public class TextConstants {
   public static final String UNKNOWN_FUNCTION = "Unknown";
   public static final String UNKNOWN_GENOTYPE = "Empty genotype";
   public static final String NO_RESULT = "No Result";
+  public static final String INDETERMINATE = "Indeterminate";
+  public static final String UNSPECIFIED = "Unspecified";
   // greater than or equal to symbol
   public static final String GTE = "\u2265";
 
@@ -24,10 +26,13 @@ public class TextConstants {
    * Displayed when gene has not been called.
    */
   public static final String UNCALLED = "Not called";
+  public static final String NO_DATA = UNCALLED + " - no variant data provided";
   public static final List<String> LIST_UNCALLED = ImmutableList.of(UNCALLED);
-  public static final List<String> LIST_UNCALLED_NO_DATA = ImmutableList.of(UNCALLED + " - no variant data provided");
+  public static final List<String> LIST_UNCALLED_NO_DATA = ImmutableList.of(NO_DATA);
 
   public static final String GENOTYPE_DELIMITER = "/";
+  public static final String REFERENCE = "Reference";
+  public static final String HOMOZYGOUS_REFERENCE = REFERENCE + GENOTYPE_DELIMITER + REFERENCE;
 
   /**
    * Detects an unspecified value.

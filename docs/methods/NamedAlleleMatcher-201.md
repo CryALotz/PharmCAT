@@ -25,7 +25,7 @@ Example:
 The default named allele definitions are designed to assume that missing alleles are the same as the reference named 
 allele, which is defined as the first named allele in the definition file.
 
-It is, however, possible to increse the score of a named allele by specifying the reference allele.  For example, this
+It is, however, possible to increase the score of a named allele by specifying the reference allele.  For example, this
 gene definition table is effectively identical to the one above, but _*2_ has a different score.
 
 |     | rs1 | rs2 | rs3 | rs4 | rs5 | score |
@@ -61,19 +61,6 @@ collection of the former).
   }
 ```
 
-### Return All Diplotypes
-
-The `Named Allele Matcher` can be required to always return all matching diplotypes instead of just the top scoring one(s).
-
-You would need to add something like this:
-
-```json
-  {
-    "gene": "XXX",
-    "allHits": true
-  }
-```
-
 
 ## Combinations and Partial Alleles
 
@@ -83,7 +70,7 @@ You would need to add something like this:
 A combination allele is when a sample matches a combination of 2 or more defined alleles.  For example, `[*6 + *14]` in
 the CYP2B6 `[*6 + *14]/*13` diplotype output.
 
-PharmCAT’s syntax for combination calls uses square brackets to reflect that it is a variation on one gene copy and to
+PharmCAT's syntax for combination calls uses square brackets to reflect that it is a variation on one gene copy and to
 distinguish it from gene duplications (e.g. tandem arrangements like CYP2D6 `*36+*10`).
 
 A partial allele is when a sample matches all the (core) variants of a defined allele but also has additional variants.
@@ -124,10 +111,12 @@ By default, only genetic variations that are defined in the allele definitions c
 position that is part of the allele definitions, the `Named Allele Matcher` produces a "Not called" for the affected
 gene since the sample matches neither the reference nor any defined variant.
 
-A different approach is taken for genes for which the defined variants affect drug toxicity . When these "undefined"
-variant calls are encountered, they will be treated as reference.  This applies to:
+A different approach is taken for genes for which the defined variants affect drug toxicity.
+When these "undefined" variant calls are encountered, they will be treated as reference.
+This applies to:
 
 * CACNA1S
+* DPYD
 * G6PD
 * NUDT15
 * RYR1

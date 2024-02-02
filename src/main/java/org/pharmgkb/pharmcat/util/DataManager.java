@@ -8,8 +8,21 @@ import java.lang.invoke.MethodHandles;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
@@ -22,18 +35,13 @@ import org.pharmgkb.pharmcat.definition.model.DefinitionExemption;
 import org.pharmgkb.pharmcat.definition.model.DefinitionFile;
 import org.pharmgkb.pharmcat.definition.model.NamedAllele;
 import org.pharmgkb.pharmcat.phenotype.PhenotypeMap;
+import org.pharmgkb.pharmcat.phenotype.model.DiplotypeRecord;
 import org.pharmgkb.pharmcat.phenotype.model.GenePhenotype;
-import org.pharmgkb.pharmcat.reporter.DrugCollection;
 import org.pharmgkb.pharmcat.reporter.MessageHelper;
 import org.pharmgkb.pharmcat.reporter.PgkbGuidelineCollection;
 import org.pharmgkb.pharmcat.reporter.model.DataSource;
-import org.pharmgkb.pharmcat.reporter.model.cpic.Drug;
 import org.pharmgkb.pharmcat.reporter.model.cpic.Publication;
-import org.pharmgkb.pharmcat.reporter.model.pgkb.Group;
 import org.pharmgkb.pharmcat.reporter.model.pgkb.GuidelinePackage;
-import org.pharmgkb.pharmcat.reporter.model.pgkb.Markdown;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
@@ -42,14 +50,13 @@ import org.slf4j.LoggerFactory;
  * @author Mark Woon
  */
 public class DataManager {
-  private static final Logger sf_logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   public static final Path DEFAULT_DEFINITION_DIR = PathUtils.getPathToResource("org/pharmgkb/pharmcat/definition/alleles");
   public static final String EXEMPTIONS_JSON_FILE_NAME = "exemptions.json";
   public static final Path DEFAULT_EXEMPTIONS_FILE = DEFAULT_DEFINITION_DIR.resolve(EXEMPTIONS_JSON_FILE_NAME);
   private static final String POSITIONS_VCF = "pharmcat_positions.vcf";
-  private static final String DPWG_ALLELES_FILE_NAME = "dpwg_allele_translations.json";
+  private static final String ALLELES_FILE_NAME = "allele_translations.json";
   private static final String CPIC_ALLELES_FILE_NAME = "allele_definitions.json";
-  private static final String sf_dpwgZipFileName = "dpwg_pharmcat.zip";
+  private static final String sf_zipFileName = "pharmcat.zip";
   private static final String sf_googleDocUrlFmt = "https://docs.google.com/spreadsheets/d/%s/export?format=tsv";
 
   private final DataSerializer m_dataSerializer = new DataSerializer();
@@ -116,64 +123,39 @@ public class DataManager {
         boolean skipGuidelines = cliHelper.hasOption("sg");
         boolean skipPhenotypes = cliHelper.hasOption("sp");
         boolean skipAlleles = cliHelper.hasOption("sa");
+
+        // this will download all the data for allele definitions, phenotypes, and drug guidelines
         if (!skipGuidelines || !skipPhenotypes || !skipAlleles) {
-          Path dpwgZipFile = downloadDir.resolve(sf_dpwgZipFileName);
+          Path zipFile = downloadDir.resolve(sf_zipFileName);
           if (!skipDownload) {
-            System.out.println("Downloading DPWG data...");
+            System.out.println("Downloading data...");
             // download DPWG data
             FileUtils.copyURLToFile(
-                new URL("https://s3.pgkb.org/data/" + sf_dpwgZipFileName),
-                dpwgZipFile.toFile());
-            ZipUtils.unzip(dpwgZipFile, downloadDir);
+                new URL("https://s3.pgkb.org/data/" + sf_zipFileName),
+                zipFile.toFile());
+            ZipUtils.unzip(zipFile, downloadDir);
           }
-          if (Files.exists(dpwgZipFile)) {
-            ZipUtils.unzip(dpwgZipFile, downloadDir);
+          if (Files.exists(zipFile)) {
+            ZipUtils.unzip(zipFile, downloadDir);
           } else {
-            System.out.println("WARNING: Cannot find " + dpwgZipFile + " - will have to rely on unpacked content");
+            System.out.println("WARNING: Cannot find " + zipFile + " - will have to rely on unpacked content");
           }
         }
 
         // must get guidelines before alleles
-        DrugCollection drugs;
         PgkbGuidelineCollection pgkbGuidelineCollection;
         if (!skipGuidelines) {
           Path drugsDir = cliHelper.getValidDirectory("g", true);
-          Path cpicDlFile = downloadDir.resolve(DrugCollection.CPIC_FILE_NAME);
-          if (!skipDownload) {
-            // download CPIC guidelines
-            FileUtils.copyURLToFile(
-                new URL(DrugCollection.CPIC_URL),
-                cpicDlFile.toFile());
-
-          }
-          // transform CPIC guidelines
-          Path cpicGuidelinesDir = drugsDir.resolve("guidelines/cpic");
-          manager.transformCpicGuidelines(cpicDlFile, cpicGuidelinesDir);
-          drugs = new DrugCollection(cpicGuidelinesDir);
-          if (!cpicGuidelinesDir.toString().equals(DrugCollection.GUIDELINES_DIR.toString())) {
-            DrugCollection oldDrugs = new DrugCollection();
-            oldDrugs.diff(drugs).forEach(sf_logger::info);
-          }
-
-          // transform DPWG guidelines
-          Path dpwgGuidelinesDir = drugsDir.resolve("guidelines/dpwg");
-          manager.transformDpwgGuidelines(downloadDir, dpwgGuidelinesDir);
-          pgkbGuidelineCollection = new PgkbGuidelineCollection(dpwgGuidelinesDir);
+          Path guidelinesDir = drugsDir.resolve("guidelines");
+          manager.transformGuidelines(downloadDir, guidelinesDir);
+          pgkbGuidelineCollection = new PgkbGuidelineCollection(guidelinesDir);
         } else {
           // if we're skipping new drug data, then use the default data
-          drugs = new DrugCollection();
           pgkbGuidelineCollection = new PgkbGuidelineCollection();
         }
 
         PhenotypeMap phenotypeMap;
         if (!skipPhenotypes) {
-          if (!skipDownload) {
-            // download phenotypes
-            FileUtils.copyURLToFile(
-                new URL("https://files.cpicpgx.org/data/report/current/gene_phenotypes.json"),
-                downloadDir.resolve("cpic_phenotypes.json").toFile());
-          }
-
           // transform phenotypes
           Path phenoDir = cliHelper.getValidDirectory("p", true);
           if (!phenoDir.getFileName().endsWith("phenotype")) {
@@ -216,10 +198,7 @@ public class DataManager {
           definitionReader = DefinitionReader.defaultReader();
         }
 
-        List<String> genesUsedInDrugRecommendations = new ArrayList<>(drugs.list().stream()
-            .flatMap(drug -> drug.getGenes().stream())
-            .sorted().distinct().toList());
-        genesUsedInDrugRecommendations.addAll(pgkbGuidelineCollection.getGenes());
+        List<String> genesUsedInDrugRecommendations = new ArrayList<>(pgkbGuidelineCollection.getGenesWithRecommendations());
         genesUsedInDrugRecommendations.removeAll(definitionReader.getGeneAlleleCount().keySet());
         genesUsedInDrugRecommendations.stream()
             .filter(g -> !g.startsWith("HLA"))
@@ -229,7 +208,7 @@ public class DataManager {
 
         if (cliHelper.hasOption("doc")) {
           Path docsDir = cliHelper.getValidDirectory("doc", true);
-          new GeneDrugSummary(definitionReader, phenotypeMap, drugs, pgkbGuidelineCollection).write(docsDir);
+          new GeneDrugSummary(definitionReader, phenotypeMap, pgkbGuidelineCollection).write(docsDir);
         }
 
       } finally {
@@ -239,57 +218,36 @@ public class DataManager {
       }
 
     } catch (Exception ex) {
+      //noinspection CallToPrintStackTrace
       ex.printStackTrace();
       System.exit(1);
     }
   }
 
+  private static final Pattern GUIDELINE_FILENAME_PATTERN = Pattern.compile("^Annotation_of_(.+)_Guideline_for_(.+)$");
 
-  private void transformCpicGuidelines(Path cpicDlFile, Path guidelinesDir) throws IOException {
+  private void transformGuidelines(Path downloadDir, Path guidelinesDir) throws IOException {
     if (!Files.exists(guidelinesDir)) {
       Files.createDirectories(guidelinesDir);
     }
-    System.out.println("Saving CPIC guidelines to " + guidelinesDir);
-    int count = 0;
-    try (BufferedReader br = Files.newBufferedReader(cpicDlFile)) {
-      List<Drug> drugs = DataSerializer.GSON.fromJson(br, DrugCollection.DRUG_LIST_TYPE);
-      drugs.sort(Comparator.naturalOrder());
-
-      for (Drug drug : drugs) {
-        count += 1;
-        drug.setSource(DataSource.CPIC);
-        String filename = sanitizeFiename(drug.getDrugName()) + ".json";
-        try (Writer writer = Files.newBufferedWriter(guidelinesDir.resolve(filename))) {
-          DataSerializer.GSON.toJson(drug, writer);
-        }
-      }
-    }
-    System.out.println("Found " + count + " CPIC guidelines");
-  }
-
-  private void transformDpwgGuidelines(Path downloadDir, Path guidelinesDir) throws IOException {
-    if (!Files.exists(guidelinesDir)) {
-      Files.createDirectories(guidelinesDir);
-    }
-    System.out.println("Saving DPWG guidelines to " + guidelinesDir);
+    System.out.println("Saving guidelines to " + guidelinesDir);
     AtomicInteger count = new AtomicInteger();
     try (Stream<Path> stream = Files.list(downloadDir.resolve("guidelines"))) {
       stream.forEach((file) -> {
         try {
-          String filename = FilenameUtils.getName(file.toString());
-          if (filename.startsWith("Annotation_of_DPWG_Guideline_for_")) {
-            filename = filename.substring(33);
-          }
-          count.incrementAndGet();
-          try (Reader reader = Files.newBufferedReader(file)) {
-            GuidelinePackage guidelinePackage = DataSerializer.GSON.fromJson(reader, GuidelinePackage.class);
-            guidelinePackage.getCitations().forEach(Publication::normalize);
-            guidelinePackage.getGroups().stream()
-                .map(Group::getActivityScore)
-                .filter(Objects::nonNull)
-                .forEach(Markdown::cleanupActivityScore);
-            try (Writer writer = Files.newBufferedWriter(guidelinesDir.resolve(filename))) {
-              DataSerializer.GSON.toJson(guidelinePackage, writer);
+          String origFilename = FilenameUtils.getName(file.toString());
+          Matcher m = GUIDELINE_FILENAME_PATTERN.matcher(origFilename);
+          if (m.matches()) {
+            String dataSource = m.group(1);
+            String annotationName = m.group(2);
+            String filename = dataSource + "_" + annotationName;
+            count.incrementAndGet();
+            try (Reader reader = Files.newBufferedReader(file)) {
+              GuidelinePackage guidelinePackage = DataSerializer.GSON.fromJson(reader, GuidelinePackage.class);
+              guidelinePackage.getCitations().forEach(Publication::normalize);
+              try (Writer writer = Files.newBufferedWriter(guidelinesDir.resolve(filename))) {
+                DataSerializer.GSON.toJson(guidelinePackage, writer);
+              }
             }
           }
         } catch (IOException ex) {
@@ -297,7 +255,7 @@ public class DataManager {
         }
       });
     }
-    System.out.println("Found " + count.get() + " DPWG guidelines");
+    System.out.println("Found " + count.get() + " guidelines");
   }
 
 
@@ -321,10 +279,12 @@ public class DataManager {
     List<DefinitionFile> definitionFiles = new ArrayList<>();
     for (DefinitionFile df : parseDefinitionFiles(downloadDir, CPIC_ALLELES_FILE_NAME)) {
       df.setSource(DataSource.CPIC);
+      df.validateAlleleNames();
       definitionFiles.add(df);
     }
-    for (DefinitionFile df : parseDefinitionFiles(downloadDir, DPWG_ALLELES_FILE_NAME)) {
+    for (DefinitionFile df : parseDefinitionFiles(downloadDir, ALLELES_FILE_NAME)) {
       df.setSource(DataSource.PHARMGKB);
+      df.validateAlleleNames();
       definitionFiles.add(df);
     }
 
@@ -332,16 +292,20 @@ public class DataManager {
     try (VcfHelper vcfHelper = new VcfHelper()) {
       for (DefinitionFile df : definitionFiles) {
         String gene = df.getGeneSymbol();
+        if (definitionFileMap.containsKey(gene)) {
+          // this will prefer CPIC allele definitions over PharmGKB ones
+          continue;
+        }
         if (gene.equals("MT-RNR1")) {
           continue;
         }
         DefinitionExemption exemption = exemptionsMap.get(gene);
         if (exemption != null) {
-          if (exemption.getIgnoredAlleles().size() > 0) {
+          if (!exemption.getIgnoredAlleles().isEmpty()) {
             System.out.println("Removing ignored named alleles in " + gene + "...");
             df.removeIgnoredNamedAlleles(exemption);
           }
-          if (exemption.getIgnoredPositions().size() > 0) {
+          if (!exemption.getIgnoredPositions().isEmpty()) {
             System.out.println("Removing ignored positions in " + gene + "...");
             df.removeIgnoredPositions(exemption);
           }
@@ -439,7 +403,7 @@ public class DataManager {
 
   private void deleteObsoleteFiles(Path dir, Set<String> obsoleteFilenames) {
 
-    if (obsoleteFilenames.size() > 0) {
+    if (!obsoleteFilenames.isEmpty()) {
       System.out.println();
       for (String filename : obsoleteFilenames) {
         Path file = dir.resolve(filename);
@@ -455,7 +419,6 @@ public class DataManager {
     Path cpicDir = phenoDir.resolve("cpic");
     System.out.println("Saving CPIC phenotypes to " + cpicDir);
     doTransformPhenotypes(downloadDir.resolve("cpic_phenotypes.json"), cpicDir, DataSource.CPIC);
-
 
     Path dpwgDir = phenoDir.resolve("dpwg");
     System.out.println("Saving DPWG phenotypes to " + dpwgDir);
@@ -473,7 +436,7 @@ public class DataManager {
         if (!genes.add(gp.getGene())) {
           throw new IllegalStateException("Multiple " + source + " GenePhenotypes for " + gp.getGene());
         }
-        try (Writer writer = Files.newBufferedWriter(outputDir.resolve(sanitizeFiename(gp.getGene()) + ".json"))) {
+        try (Writer writer = Files.newBufferedWriter(outputDir.resolve(sanitizeFilename(gp.getGene()) + ".json"))) {
           DataSerializer.GSON.toJson(gp, writer);
         }
       }
@@ -483,6 +446,12 @@ public class DataManager {
 
 
   private static void validatePhenotypes(PhenotypeMap phenotypeMap) {
+    for (GenePhenotype gp : phenotypeMap.getCpicGenes()) {
+      checkForDuplicatePhenotypeKeys(gp, DataSource.CPIC);
+    }
+    for (GenePhenotype gp : phenotypeMap.getDpwgGenes()) {
+      checkForDuplicatePhenotypeKeys(gp, DataSource.DPWG);
+    }
     // validate DPYD phenotypes (DpydCaller depends on this expectation)
     GenePhenotype dpwgGp = Objects.requireNonNull(phenotypeMap.getPhenotype("DPYD", DataSource.DPWG));
     GenePhenotype cpicGp = Objects.requireNonNull(phenotypeMap.getPhenotype("DPYD", DataSource.CPIC));
@@ -493,7 +462,21 @@ public class DataManager {
     }
   }
 
-  private static String sanitizeFiename(String basename) {
+  private static void checkForDuplicatePhenotypeKeys(GenePhenotype gp, DataSource source) {
+    Set<String> keys = new HashSet<>();
+    for (DiplotypeRecord dr : gp.getDiplotypes()) {
+      String key = dr.getDiplotypeKey().keySet().stream()
+          .sorted()
+          .map(h -> h + " (" + dr.getDiplotypeKey().get(h) + ")")
+          .collect(Collectors.joining("/"));
+      if (!keys.add(key)) {
+        throw new IllegalStateException("Duplicate key: " + key + " for " + gp.getGene() + " from " + source);
+      }
+    }
+  }
+
+
+  private static String sanitizeFilename(String basename) {
     return basename.replaceAll("\\p{Punct}", " ")
         .replaceAll("\\s+", "_");
   }

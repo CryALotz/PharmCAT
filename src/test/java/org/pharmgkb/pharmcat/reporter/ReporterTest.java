@@ -28,6 +28,7 @@ class ReporterTest {
 
     // test the CYP2C9 data
     GeneReport geneReport = reportContext.getGeneReport(DataSource.CPIC, "CYP2C9");
+    assertNotNull(geneReport);
     assertTrue(geneReport.isReportable());
     assertTrue(geneReport.isCalled());
     assertFalse(geneReport.isOutsideCall());
@@ -41,11 +42,11 @@ class ReporterTest {
     // test that messages were applied for a drug
     DrugReport warfarinReport = reportContext.getDrugReports().get(DataSource.CPIC).get("warfarin");
     assertNotNull(warfarinReport, "Missing warfarin drug report");
-    assertEquals(0, warfarinReport.getMessages().size());
+    assertEquals(2, warfarinReport.getMessages().size());
     assertEquals(1, warfarinReport.getGuidelines().size());
     GuidelineReport guidelineReport = warfarinReport.getGuidelines().first();
     assertEquals(1, guidelineReport.getAnnotations().size());
-    assertEquals(2, guidelineReport.getAnnotations().first().getMessages().size());
+    assertEquals(0, guidelineReport.getAnnotations().first().getMessages().size());
 
     // test that recommendations were matched
     DrugReport desfluraneReport = reportContext.getDrugReports().get(DataSource.CPIC).values().stream()

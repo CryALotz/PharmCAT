@@ -2,7 +2,6 @@ package org.pharmgkb.pharmcat;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -25,8 +24,6 @@ import org.pharmgkb.pharmcat.reporter.ReportContext;
 import org.pharmgkb.pharmcat.reporter.format.HtmlFormat;
 import org.pharmgkb.pharmcat.reporter.format.JsonFormat;
 import org.pharmgkb.pharmcat.reporter.model.DataSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 /**
@@ -35,7 +32,6 @@ import org.slf4j.LoggerFactory;
  * @author Mark Woon
  */
 public class Pipeline implements Callable<PipelineResult> {
-  private static final Logger sf_logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   public enum Mode {
     /**
      * Default mode.  Prints informative messages to console.
@@ -46,7 +42,7 @@ public class Pipeline implements Callable<PipelineResult> {
      * In test mode, PharmCAT tries not to include version/timestamp in output to simplify diffing.
      */
     TEST
-  };
+  }
   private final Env m_env;
   private final boolean m_runMatcher;
   private VcfFile m_vcfFile;
@@ -87,7 +83,7 @@ public class Pipeline implements Callable<PipelineResult> {
       boolean topCandidateOnly, boolean callCyp2d6, boolean findCombinations, boolean matcherHtml,
       boolean runPhenotyper, @Nullable Path phenotyperInputFile, @Nullable Path phenotyperOutsideCallsFile,
       boolean runReporter, @Nullable Path reporterInputFile, @Nullable String reporterTitle,
-      @Nullable List<DataSource> reporterSources, boolean reporterCompact, boolean reporterJson,
+      @Nullable List<DataSource> reporterSources, boolean reporterCompact, boolean reporterJson, boolean reporterHtml,
       @Nullable Path outputDir, @Nullable String baseFilename, boolean deleteIntermediateFiles,
       Mode mode, @Nullable String displayCount, boolean verbose) throws ReportableException {
     m_env = env;
@@ -98,6 +94,9 @@ public class Pipeline implements Callable<PipelineResult> {
       m_vcfFile = Objects.requireNonNull(vcfFile);
       m_sampleId = sampleId;
       generateBasename(baseFilename, vcfFile.getFile(), sampleId, singleSample);
+      if (m_baseDir == null) {
+        m_baseDir = m_vcfFile.getFile().getParent();
+      }
       m_matcherJsonFile = m_baseDir.resolve(m_basename + BaseConfig.MATCHER_SUFFIX + ".json");
       m_topCandidateOnly = topCandidateOnly;
       m_callCyp2d6 = callCyp2d6;
@@ -121,6 +120,9 @@ public class Pipeline implements Callable<PipelineResult> {
         throw new IllegalStateException("No phenotyper input file");
       }
       generateBasename(baseFilename, inputFile, sampleId, singleSample);
+      if (m_baseDir == null) {
+        m_baseDir = inputFile.getParent();
+      }
       m_phenotyperJsonFile = m_baseDir.resolve(m_basename + BaseConfig.PHENOTYPER_SUFFIX + ".json");
     }
 
@@ -135,7 +137,12 @@ public class Pipeline implements Callable<PipelineResult> {
         throw new IllegalStateException("No reporter input file");
       }
       generateBasename(baseFilename, inputFile, sampleId, singleSample);
-      m_reporterHtmlFile = m_baseDir.resolve(m_basename + BaseConfig.REPORTER_SUFFIX + ".html");
+      if (m_baseDir == null) {
+        m_baseDir = inputFile.getParent();
+      }
+      if (reporterHtml) {
+        m_reporterHtmlFile = m_baseDir.resolve(m_basename + BaseConfig.REPORTER_SUFFIX + ".html");
+      }
       if (reporterJson) {
         m_reporterJsonFile = m_baseDir.resolve(m_basename + BaseConfig.REPORTER_SUFFIX + ".json");
       }
@@ -218,15 +225,15 @@ public class Pipeline implements Callable<PipelineResult> {
       List<String> output = new ArrayList<>();
       org.pharmgkb.pharmcat.haplotype.model.Result matcherResult = null;
       if (m_runMatcher) {
-        NamedAlleleMatcher namedAlleleMatcher =
-            new NamedAlleleMatcher(m_env.getDefinitionReader(), m_findCombinations, m_topCandidateOnly, m_callCyp2d6);
+        NamedAlleleMatcher namedAlleleMatcher = new NamedAlleleMatcher(m_env, m_env.getDefinitionReader(),
+            m_findCombinations, m_topCandidateOnly, m_callCyp2d6);
         if (!batchDisplayMode) {
           namedAlleleMatcher.printWarnings();
         }
         matcherResult = namedAlleleMatcher.call(m_vcfFile, m_sampleId);
 
         if (matcherResult.getVcfWarnings() != null &&
-            matcherResult.getVcfWarnings().size() > 0) {
+            !matcherResult.getVcfWarnings().isEmpty()) {
           Path txtFile = m_matcherJsonFile.getParent()
               .resolve(m_basename + BaseConfig.MATCHER_SUFFIX + "_warnings.txt");
           try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(txtFile))) {
@@ -260,12 +267,12 @@ public class Pipeline implements Callable<PipelineResult> {
         Map<String, Collection<String>> warnings = new HashMap<>();
         if (matcherResult != null) {
           calls = matcherResult.getGeneCalls();
-          warnings = matcherResult.getVcfWarnings();
+          warnings.putAll(matcherResult.getVcfWarnings());
         } else if (m_phenotyperInputFile != null) {
           org.pharmgkb.pharmcat.haplotype.model.Result deserializedMatcherResult = new ResultSerializer()
               .fromJson(m_phenotyperInputFile);
           calls = deserializedMatcherResult.getGeneCalls();
-          warnings = deserializedMatcherResult.getVcfWarnings();
+          warnings.putAll(deserializedMatcherResult.getVcfWarnings());
         } else {
           calls = new ArrayList<>();
         }
@@ -275,16 +282,14 @@ public class Pipeline implements Callable<PipelineResult> {
           for (OutsideCall call : OutsideCallParser.parse(m_phenotyperOutsideCallsFile)) {
             if (!m_env.hasGene(call.getGene())) {
               String msg = "Discarded outside call for " + call.getGene() + " because it is not supported by PharmCAT.";
-              warnings.put(call.getGene(), List.of(msg));
-              sf_logger.warn(msg);
+              output.add(AnsiConsole.styleWarning(msg));
               continue;
             }
             if (!m_env.isActivityScoreGene(call.getGene())) {
               if (call.getDiplotype() == null && call.getPhenotype() == null) {
                 String msg = call.getGene() + " is not an activity score gene but has outside call with only an " +
                     "activity score.  PharmCAT will not be able to provide any recommendations based on this gene.";
-                warnings.put(call.getGene(), List.of(msg));
-                sf_logger.warn(msg);
+                output.add(AnsiConsole.styleWarning(msg));
               }
             }
             outsideCalls.add(call);
@@ -307,13 +312,15 @@ public class Pipeline implements Callable<PipelineResult> {
           phenotyper = Phenotyper.read(inputFile);
         }
         m_reportContext = new ReportContext(m_env, phenotyper.getGeneReports(), m_reporterTitle);
-        if (!batchDisplayMode) {
-          output.add("Saving reporter HTML results to " + m_reporterHtmlFile);
+        if (m_reporterHtmlFile != null) {
+          if (!batchDisplayMode) {
+            output.add("Saving reporter HTML results to " + m_reporterHtmlFile);
+          }
+          new HtmlFormat(m_reporterHtmlFile, m_env, m_mode == Mode.TEST)
+              .sources(m_reporterSources)
+              .compact(m_reporterCompact)
+              .write(m_reportContext);
         }
-        new HtmlFormat(m_reporterHtmlFile, m_env, m_mode == Mode.TEST)
-            .sources(m_reporterSources)
-            .compact(m_reporterCompact)
-            .write(m_reportContext);
         if (m_reporterJsonFile != null) {
           if (!batchDisplayMode) {
             output.add("Saving reporter JSON results to " + m_reporterJsonFile);
@@ -358,9 +365,11 @@ public class Pipeline implements Callable<PipelineResult> {
           m_sampleId);
 
     } catch (Exception ex) {
-      if (!m_singleSample) {
-        Path txtFile = m_baseDir.resolve(m_basename + ".ERROR.txt");
+      if (!m_singleSample || batchDisplayMode) {
+        System.err.println("Error with " + m_displayName + ":");
+        //noinspection CallToPrintStackTrace
         ex.printStackTrace();
+        Path txtFile = m_baseDir.resolve(m_basename + ".ERROR.txt");
         try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(txtFile))) {
           ex.printStackTrace(writer);
         }
@@ -376,25 +385,25 @@ public class Pipeline implements Callable<PipelineResult> {
   }
 
 
-  public String getInputDescription() {
+  private String getInputDescription() {
     StringBuilder builder = new StringBuilder();
     if (m_vcfFile != null) {
       builder.append(m_vcfFile.getFile().getFileName());
     }
     if (m_phenotyperInputFile != null) {
-      if (builder.length() > 0) {
+      if (!builder.isEmpty()) {
         builder.append(", ");
       }
       builder.append(m_phenotyperInputFile.getFileName());
     }
     if (m_phenotyperOutsideCallsFile != null) {
-      if (builder.length() > 0) {
+      if (!builder.isEmpty()) {
         builder.append(", ");
       }
       builder.append(m_phenotyperOutsideCallsFile.getFileName());
     }
     if (m_reporterInputFile != null) {
-      if (builder.length() > 0) {
+      if (!builder.isEmpty()) {
         builder.append(", ");
       }
       builder.append(m_reporterInputFile.getFileName());

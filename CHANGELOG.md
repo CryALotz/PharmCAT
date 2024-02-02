@@ -1,3 +1,124 @@
+## [2.9.0](https://github.com/PharmGKB/PharmCAT/compare/v2.8.3...v2.9.0) (2024-1-17)
+
+
+### Features
+
+* **data:** update to CPIC version v1.35 ([5cb6717](https://github.com/PharmGKB/PharmCAT/commit/5cb671756393b82732c2ffeb5e06201d453cade3))
+* **data:** update to PharmGKB version 2023-12-19 ([66c49f9](https://github.com/PharmGKB/PharmCAT/commit/66c49f9d584b9c3e72cb6488fc17ffc79e9442cd))
+* **reporter:** add new "non-match" type of message ([f5df05a](https://github.com/PharmGKB/PharmCAT/commit/f5df05a0cf0c7edd8e91fc59644cb81ea0535504))
+
+
+### Bug Fixes
+
+* **namedallelematcher:** DPYD matching should ignore find-combinations mode ([153853a](https://github.com/PharmGKB/PharmCAT/commit/153853a36a79694002de3d92c5fd56ad17a113d2))
+* **namedallelematcher:** improve AD number warning ([9d9a0b9](https://github.com/PharmGKB/PharmCAT/commit/9d9a0b98dbd5ea75ea5ab7476986f715125eb0a3)), closes [#168](https://github.com/PharmGKB/PharmCAT/issues/168)
+* **phenotyper:** fix bug with stripping gene symbol from outside call diplotypes ([cb97898](https://github.com/PharmGKB/PharmCAT/commit/cb978987fc7e54386c1bd09e6caeba817e485de2)), closes [#161](https://github.com/PharmGKB/PharmCAT/issues/161)
+
+
+### Performance Improvements
+
+* improve runtime of diplotype comparison ([406930c](https://github.com/PharmGKB/PharmCAT/commit/406930cedffa551ed3e21331766c8f630a9b7881))
+
+## [2.8.3](https://github.com/PharmGKB/PharmCAT/compare/v2.8.2...v2.8.3) (2023-10-24)
+
+
+### Bug Fixes
+
+* improve labeling of reference calls ([4713b9b](https://github.com/PharmGKB/PharmCAT/commit/4713b9bae11e2de782e682bc2a8c935a12b679a2)), closes [#158](https://github.com/PharmGKB/PharmCAT/issues/158)
+* **data:** fix date parsing for Java 21 ([aba3dcd](https://github.com/PharmGKB/PharmCAT/commit/aba3dcd8cdd0377175038a51c1435ac523141fe3)), closes [#159](https://github.com/PharmGKB/PharmCAT/issues/159)
+* **reporter:** fix version check for CPIC content ([cb4b762](https://github.com/PharmGKB/PharmCAT/commit/cb4b7627e8010ba463255321915868033d41e007)), closes [#157](https://github.com/PharmGKB/PharmCAT/issues/157)
+
+## [2.8.2](https://github.com/PharmGKB/PharmCAT/compare/v2.8.1...v2.8.2) (2023-10-02)
+
+
+### Bug Fixes
+
+* **data:** update to PharmVar 6.0.7 ([34e253b](https://github.com/PharmGKB/PharmCAT/commit/34e253b92ee0922162bc2026adee47522a91dac7))
+* **namedallelematcher:** fix ArrayIndexOutOfBoundsException bug ([a29420a](https://github.com/PharmGKB/PharmCAT/commit/a29420a43b5ffba505c60fbc42e14fe9de05636e)), closes [#156](https://github.com/PharmGKB/PharmCAT/issues/156)
+* **phenotyper:** consistently sort GenePhenotype.diplotypes ([36f1aa5](https://github.com/PharmGKB/PharmCAT/commit/36f1aa509540c9133bef66779c40d23b72e9e659))
+
+## [2.8.1](https://github.com/PharmGKB/PharmCAT/compare/v2.8.0...v2.8.1) (2023-09-29)
+
+
+### Bug Fixes
+
+* improve error handling in batch mode ([b7c9e66](https://github.com/PharmGKB/PharmCAT/commit/b7c9e660464313b0e42c59e014c357aa25a7455b))
+* **data:** add more data validation ([0388049](https://github.com/PharmGKB/PharmCAT/commit/0388049ba06b345f54a4bf2682f872379156d4ce))
+* **namedallelematcher:** fix DPYD HapB3 phasing issue ([256ac64](https://github.com/PharmGKB/PharmCAT/commit/256ac64335d47b53c6c7b566b75bc9b0f52a6646)), closes [#155](https://github.com/PharmGKB/PharmCAT/issues/155)
+
+## [2.8.0](https://github.com/PharmGKB/PharmCAT/compare/v2.7.1...v2.8.0) (2023-09-22)
+
+
+### Features
+
+* **pharmcat:** update DPYD matcher algorithm ([763b950](https://github.com/PharmGKB/PharmCAT/commit/763b950a34f6227eaf759135cbfeec4cd8ea36f5)), closes [#150](https://github.com/PharmGKB/PharmCAT/issues/150)
+
+
+### Bug Fixes
+
+* **pharmcat:** allow reporter JSON in research mode ([a3b0496](https://github.com/PharmGKB/PharmCAT/commit/a3b04963017e0e99ac3851bd666bdf70513d1262))
+* **pharmcat:** avoid NPE ([a86daa6](https://github.com/PharmGKB/PharmCAT/commit/a86daa61e765bb158e7996c0d250bcb1ac7d7304))
+* **pharmcat:** avoid NPE ([da11bd6](https://github.com/PharmGKB/PharmCAT/commit/da11bd6556298b109e17543faf00f378cc0b6444))
+* **pharmcat:** fix console message ([f2b4086](https://github.com/PharmGKB/PharmCAT/commit/f2b4086b6bfcee20f88874b7c8fea59fc782b8d9))
+* **pharmcat:** fix how warnings are handled with outside calls ([634f3b4](https://github.com/PharmGKB/PharmCAT/commit/634f3b4231dd05e1b6cf43eda035ebe7a74afb24)), closes [#154](https://github.com/PharmGKB/PharmCAT/issues/154)
+* **phenotyper:** pass through outside calls even if no recommendations are available ([03f7f7c](https://github.com/PharmGKB/PharmCAT/commit/03f7f7cb6f97dab9726f7dc4b180ceb45844fa75)), closes [#154](https://github.com/PharmGKB/PharmCAT/issues/154)
+* **reporter:** add DPYD warnings ([2427813](https://github.com/PharmGKB/PharmCAT/commit/24278138e706faa7e749d87debf80b016a4a7683))
+
+## [2.7.1](https://github.com/PharmGKB/PharmCAT/compare/v2.7.0...v2.7.1) (2023-09-09)
+
+
+### Bug Fixes
+
+* **data:** revert removal of DPYD wobble handling ([9a78c86](https://github.com/PharmGKB/PharmCAT/commit/9a78c86e26bb1dc743a108d14146e7a579e02941))
+* **data:** update to PharmVar 6.0.5 ([63c717b](https://github.com/PharmGKB/PharmCAT/commit/63c717bad5c5539b3c9045f047675756e7fd07d6))
+
+## [2.7.0](https://github.com/PharmGKB/PharmCAT/compare/v2.6.0...v2.7.0) (2023-09-02)
+
+
+### Features
+
+* **pharmcat:** Use PharmGKB for all drug and phenotype annotations ([7390fa1](https://github.com/PharmGKB/PharmCAT/commit/7390fa18fb6f1942266f2278b0852efa1882a46d))
+* **reporter:** add new footnote about CPIC/DPWG function ([b986a13](https://github.com/PharmGKB/PharmCAT/commit/b986a138f5ad9266ca3024ee10c9e55a19441b81))
+
+
+### Bug Fixes
+
+* **data:** fix guideline citation data and update RYR1 phenotypes ([93de1ff](https://github.com/PharmGKB/PharmCAT/commit/93de1ffa7d7f72613dd9de6a48f091744e81dc77))
+* **pharmcat:** disable reporter module when using research mode ([d1b1822](https://github.com/PharmGKB/PharmCAT/commit/d1b182225fa4dc033ca2766bf5f7f8513fa1ab00))
+* **preprocessor:** capture both error and log from subprocess ([c115ed2](https://github.com/PharmGKB/PharmCAT/commit/c115ed253a489969330afbf56a66b4c2afe5ca39))
+* **preprocessor:** install the scikit-allel that has a working toml file ([77e2c43](https://github.com/PharmGKB/PharmCAT/commit/77e2c431f68f2bca3d035b77bff43d012516d15e))
+
+## [2.6.0](https://github.com/PharmGKB/PharmCAT/compare/v2.5.0...v2.6.0) (2023-08-08)
+
+
+### Features
+
+* **data:** update data to sync with CPIC 1.28 and latest PharmGKB ([4cdfc34](https://github.com/PharmGKB/PharmCAT/commit/4cdfc34d990ebb320a9824831a90d136acfabd7b))
+
+
+### Bug Fixes
+
+* **data:** update data ([76bfe08](https://github.com/PharmGKB/PharmCAT/commit/76bfe08c85fc1b63d014445e3d7dd883cf7088cf))
+* **data:** update F5 version ([43b6637](https://github.com/PharmGKB/PharmCAT/commit/43b6637904c11d2f396c48494ae5089a3ffb36ec))
+* **namedallelematcher:** fix DPYD call with ref and partial ([fa09226](https://github.com/PharmGKB/PharmCAT/commit/fa09226f9494d8af680b5cad442d174dfbef9b5e))
+* **namedallelematcher:** improve DPYD calling ([57b2bd8](https://github.com/PharmGKB/PharmCAT/commit/57b2bd81d38f6ac871ad9a4e410df700c4b11def))
+* **namedallelematcher:** improve DPYD calling with HapB3 wobble ([3528815](https://github.com/PharmGKB/PharmCAT/commit/3528815318faf9d49370cae97c96c50db62e90d6))
+* **namedallelematcher:** support wobble in DPYD HapB3 ([65a1309](https://github.com/PharmGKB/PharmCAT/commit/65a13098f46a43d422058a34d48a2667bed184c3))
+* **namedallelematcher:** update HTML output to use Bootstrap 5 ([3774cca](https://github.com/PharmGKB/PharmCAT/commit/3774cca4108268e71d4c811546db3b46fedabd82))
+* **pharmcat:** fix NPE when called without -o flag ([a8d5f51](https://github.com/PharmGKB/PharmCAT/commit/a8d5f5100faa5560a8ffefbf56c67e9a27f1029f))
+* **preprocessor:** pipe stdout to a user's running interface to show warning messages from a subprocess ([36c151b](https://github.com/PharmGKB/PharmCAT/commit/36c151b568392942065d8b41d3be966df399c503))
+* **reporter:** display allele function in section 3 ([5f48358](https://github.com/PharmGKB/PharmCAT/commit/5f48358447780ae24cb920fd2698655aff6a2b0f))
+* **reporter:** don't emit empty ids ([c7f3d48](https://github.com/PharmGKB/PharmCAT/commit/c7f3d480c3125fb344569ec151b3888f49166aa0))
+* **reporter:** fix browser upgrade CSS ([6ba5bf1](https://github.com/PharmGKB/PharmCAT/commit/6ba5bf1d5341d64250fe6d1212e39f5fec1f6dca))
+* **reporter:** fix links to uncallable genes in section 3 ([f1d4da2](https://github.com/PharmGKB/PharmCAT/commit/f1d4da2c46fcb0aa6a87643e3a0d976f215992e3))
+* **reporter:** identify homozygous DPYD haplotypes ([0f10fe3](https://github.com/PharmGKB/PharmCAT/commit/0f10fe386ae2cccc6bd64b770dcb896a9c3f9c24))
+* **reporter:** improve allele match data for CYP2C19 *1 ([2bc80cd](https://github.com/PharmGKB/PharmCAT/commit/2bc80cdd31d0bd8818c542037a578769a71e2583))
+* **reporter:** improve message for uncalled because of no data ([8211015](https://github.com/PharmGKB/PharmCAT/commit/82110153b980b2eb25b6b3bdc9131fdc99f19a35))
+* **reporter:** improve text for uncallable genes ([7e794b3](https://github.com/PharmGKB/PharmCAT/commit/7e794b380bfb9c77b67d289abeb204526cd31698))
+* **reporter:** list function in section 3 ([e51483c](https://github.com/PharmGKB/PharmCAT/commit/e51483ca14dfabdfa7257faa0292c199699f00c3))
+* **reporter:** show function in section 3 even when there is a no call ([4e2ea20](https://github.com/PharmGKB/PharmCAT/commit/4e2ea20fd4165918a538707407a2f0f7a44abaf8))
+* **reporter:** show genes in section III if uncallable ([7da2075](https://github.com/PharmGKB/PharmCAT/commit/7da2075732beecb856430dc06ac45356cbc47e1b))
+
 ## [2.5.0](https://github.com/PharmGKB/PharmCAT/compare/v2.4.0...v2.5.0) (2023-06-12)
 
 
